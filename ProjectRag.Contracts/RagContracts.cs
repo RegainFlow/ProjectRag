@@ -3,6 +3,14 @@
 public sealed record StartIngestionRequest(
     string SourcePath);
 
+public sealed record IngestionJobResponse(
+    Guid IngestionId,
+    string SourcePath,
+    string Status,
+    string? ErrorMessage,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? StartedAt,
+    DateTimeOffset? CompletedAt);
 public sealed record DocumentSummaryResponse(
     string DocumentId,
     string SourceUri,

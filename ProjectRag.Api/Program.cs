@@ -1,10 +1,12 @@
 using ProjectRag.Api.Endpoints;
+using ProjectRag.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+builder.Services.AddInfrastructure(builder.Configuration);
 
 var app = builder.Build();
 
@@ -21,3 +23,5 @@ app.MapGroup("/api/v1")
     .WithTags("RAG API");
 
 app.Run();
+
+public partial class Program { }
