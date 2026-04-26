@@ -7,8 +7,8 @@ public sealed class Document
     public string Title { get; set; } = "";
     public string ContentHash { get; set; } = "";
     public string? SourceType { get; set; }
-    public DateTimeOffset CreatedAt { get; set; }
-    public DateTimeOffset UpdatedAt { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
     public List<DocumentChunk> Chunks { get; set; } = [];
 
 }

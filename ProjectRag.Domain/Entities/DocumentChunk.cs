@@ -12,5 +12,5 @@ public sealed class DocumentChunk
     public int? PageNumber { get; set; }
     public string? SectionTitle { get; set; }
     public ChunkKind Kind { get; set; }
-    public DateTimeOffset CreatedAt { get; set; }
+    public DateTime CreatedAt { get; set; }
 }

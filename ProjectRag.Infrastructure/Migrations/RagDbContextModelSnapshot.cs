@@ -28,7 +28,7 @@ namespace ProjectRag.Infrastructure.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTimeOffset>("CreatedAt")
+                    b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("SourceType")
@@ -45,7 +45,7 @@ namespace ProjectRag.Infrastructure.Migrations
                         .HasMaxLength(512)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTimeOffset>("UpdatedAt")
+                    b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -64,7 +64,7 @@ namespace ProjectRag.Infrastructure.Migrations
                     b.Property<int>("ChunkIndex")
                         .HasColumnType("INTEGER");
 
-                    b.Property<DateTimeOffset>("CreatedAt")
+                    b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
                     b.Property<Guid>("DocumentId")
@@ -98,10 +98,10 @@ namespace ProjectRag.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTimeOffset?>("CompletedAt")
+                    b.Property<DateTime?>("CompletedAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTimeOffset>("CreatedAt")
+                    b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ErrorMessage")
@@ -113,7 +113,7 @@ namespace ProjectRag.Infrastructure.Migrations
                         .HasMaxLength(2048)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTimeOffset?>("StartedAt")
+                    b.Property<DateTime?>("StartedAt")
                         .HasColumnType("TEXT");
 
                     b.Property<int>("Status")

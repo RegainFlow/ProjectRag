@@ -20,8 +20,8 @@ namespace ProjectRag.Infrastructure.Migrations
                     Title = table.Column<string>(type: "TEXT", maxLength: 512, nullable: false),
                     ContentHash = table.Column<string>(type: "TEXT", maxLength: 128, nullable: false),
                     SourceType = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
-                    CreatedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
-                    UpdatedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: false)
+                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -36,9 +36,9 @@ namespace ProjectRag.Infrastructure.Migrations
                     SourcePath = table.Column<string>(type: "TEXT", maxLength: 2048, nullable: false),
                     Status = table.Column<int>(type: "INTEGER", nullable: false),
                     ErrorMessage = table.Column<string>(type: "TEXT", maxLength: 4000, nullable: true),
-                    CreatedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
-                    StartedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: true),
-                    CompletedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: true)
+                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    StartedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    CompletedAt = table.Column<DateTime>(type: "TEXT", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -56,7 +56,7 @@ namespace ProjectRag.Infrastructure.Migrations
                     PageNumber = table.Column<int>(type: "INTEGER", nullable: true),
                     SectionTitle = table.Column<string>(type: "TEXT", maxLength: 512, nullable: true),
                     Kind = table.Column<int>(type: "INTEGER", nullable: false),
-                    CreatedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: false)
+                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
                 {

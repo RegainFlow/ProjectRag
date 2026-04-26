@@ -28,7 +28,7 @@ public static class RagEndpoints
                 Id = Guid.NewGuid(),
                 SourcePath = request.SourcePath,
                 Status = IngestionJobStatus.Pending,
-                CreatedAt = DateTimeOffset.UtcNow
+                CreatedAt = DateTime.UtcNow
             };
 
             db.IngestionJobs.Add(job);

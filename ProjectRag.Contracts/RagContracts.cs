@@ -8,14 +8,14 @@ public sealed record IngestionJobResponse(
     string SourcePath,
     string Status,
     string? ErrorMessage,
-    DateTimeOffset CreatedAt,
-    DateTimeOffset? StartedAt,
-    DateTimeOffset? CompletedAt);
+    DateTime CreatedAt,
+    DateTime? StartedAt,
+    DateTime? CompletedAt);
 public sealed record DocumentSummaryResponse(
     string DocumentId,
     string SourceUri,
     string Title,
-    DateTimeOffset CreatedAt);
+    DateTime CreatedAt);
 
 public sealed record SearchRequest(
     string Query,

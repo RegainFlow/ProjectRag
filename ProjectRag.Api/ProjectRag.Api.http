@@ -1,6 +1,41 @@
-@ProjectRag.Api_HostAddress = http://localhost:5260
+@hostname=localhost
+@port=5260
+@baseUrl=http://{{hostname}}:{{port}}/api/v1
 
-GET {{ProjectRag.Api_HostAddress}}/weatherforecast/
+### Health
+GET {{baseUrl}}/health
 Accept: application/json
 
-###
+### Create ingestion job
+POST {{baseUrl}}/ingestions
+Content-Type: application/json
+Accept: application/json
+{
+  "sourcePath": "samples/invoice-001.pdf"
+}
+
+### Get ingestion job
+GET {{baseUrl}}/ingestions/ebdd44f9-c323-40a0-9c33-bccfd6e12b45
+Accept: application/json
+
+### List documents
+GET {{baseUrl}}/documents
+Accept: application/json
+
+### Search placeholder
+POST {{baseUrl}}/search
+Content-Type: application/json
+Accept: application/json
+{
+  "query": "late payment fees",
+  "topK": 10
+}
+
+### Ask placeholder
+POST {{baseUrl}}/ask
+Content-Type: application/json
+Accept: application/json
+{
+  "question": "What does the document say about late payments fees?",
+  "topK": 10
+}
