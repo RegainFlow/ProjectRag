@@ -1,0 +1,22 @@
+<Solution>
+  <Project Path="ProjectRag.Api/ProjectRag.Api.csproj">
+    <BuildDependency Project="ProjectRag.Application/ProjectRag.Application.csproj" />
+    <BuildDependency Project="ProjectRag.Contracts/ProjectRag.Contracts.csproj" />
+    <BuildDependency Project="ProjectRag.Domain/ProjectRag.Domain.csproj" />
+  </Project>
+  <Project Path="ProjectRag.Application/ProjectRag.Application.csproj">
+    <BuildDependency Project="ProjectRag.Domain/ProjectRag.Domain.csproj" />
+  </Project>
+  <Project Path="ProjectRag.Contracts/ProjectRag.Contracts.csproj" />
+  <Project Path="ProjectRag.Domain/ProjectRag.Domain.csproj" />
+  <Project Path="ProjectRag.Infrastructure/ProjectRag.Infrastructure.csproj">
+    <BuildDependency Project="ProjectRag.Application/ProjectRag.Application.csproj" />
+    <BuildDependency Project="ProjectRag.Domain/ProjectRag.Domain.csproj" />
+  </Project>
+  <Project Path="ProjectRag.Ingestion.Worker/ProjectRag.Ingestion.Worker.csproj">
+    <BuildDependency Project="ProjectRag.Application/ProjectRag.Application.csproj" />
+    <BuildDependency Project="ProjectRag.Contracts/ProjectRag.Contracts.csproj" />
+    <BuildDependency Project="ProjectRag.Infrastructure/ProjectRag.Infrastructure.csproj" />
+  </Project>
+  <Project Path="ProjectRag.Tests/ProjectRag.Tests.csproj" />
+</Solution>
