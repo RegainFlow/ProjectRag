@@ -1,6 +1,7 @@
 @hostname=localhost
 @port=5260
 @baseUrl=http://{{hostname}}:{{port}}/api/v1
+@ingestionId=cb1cd91a-6c8e-4f70-9ef2-6dffbbe0a52e
 
 ### Health
 GET {{baseUrl}}/health
@@ -11,31 +12,31 @@ POST {{baseUrl}}/ingestions
 Content-Type: application/json
 Accept: application/json
 {
-  "sourcePath": "samples/invoice-001.pdf"
+  "sourcePath": "samples/docs"
 }
 
 ### Get ingestion job
-GET {{baseUrl}}/ingestions/ebdd44f9-c323-40a0-9c33-bccfd6e12b45
+GET {{baseUrl}}/ingestions/{{ingestionId}}
 Accept: application/json
 
 ### List documents
 GET {{baseUrl}}/documents
 Accept: application/json
 
-### Search placeholder
+### Search documents
 POST {{baseUrl}}/search
 Content-Type: application/json
 Accept: application/json
 {
   "query": "late payment fees",
-  "topK": 10
+  "topK": 5
 }
 
-### Ask placeholder
+### Ask documents
 POST {{baseUrl}}/ask
 Content-Type: application/json
 Accept: application/json
 {
-  "question": "What does the document say about late payments fees?",
-  "topK": 10
+  "question": "What are the late payment fees?",
+  "topK": 5
 }

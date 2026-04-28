@@ -1,6 +1,6 @@
 # Architecture
 
-ProjectRag is a layered .NET RAG service. The architecture is intentionally conservative in Phase 0: establish clear boundaries, persistence, API contracts, and testability before introducing embeddings, LLMs, vector stores, or retrieval orchestration.
+ProjectRag is a layered .NET RAG service. The architecture is intentionally conservative: establish clear boundaries, persistence, API contracts, testability, and a simple RAG loop before introducing scanned PDFs, hybrid retrieval, reranking, or agentic orchestration.
 
 ## Layers
 
@@ -23,6 +23,9 @@ ProjectRag.Infrastructure
   SQLite provider registration
   Entity configurations
   Migrations
+  Text ingestion
+  Ollama AI client registration
+  In-memory cosine vector search
 
 ProjectRag.Application
   Future orchestration/services
@@ -93,7 +96,7 @@ flowchart LR
 
 ## Persistence Model
 
-Phase 0 stores three main concepts:
+The persistence layer stores three main concepts:
 
 - `Document`: one original source document.
 - `DocumentChunk`: one searchable text chunk belonging to a document.
@@ -119,8 +122,8 @@ erDiagram
         string Title
         string ContentHash
         string SourceType
-        datetimeoffset CreatedAt
-        datetimeoffset UpdatedAt
+        datetime CreatedAt
+        datetime UpdatedAt
     }
 
     DOCUMENT_CHUNKS {
@@ -131,7 +134,7 @@ erDiagram
         int PageNumber
         string SectionTitle
         int Kind
-        datetimeoffset CreatedAt
+        datetime CreatedAt
     }
 
     INGESTION_JOBS {
@@ -139,9 +142,9 @@ erDiagram
         string SourcePath
         int Status
         string ErrorMessage
-        datetimeoffset CreatedAt
-        datetimeoffset StartedAt
-        datetimeoffset CompletedAt
+        datetime CreatedAt
+        datetime StartedAt
+        datetime CompletedAt
     }
 ```
 
@@ -161,38 +164,46 @@ modelBuilder.ApplyConfigurationsFromAssembly(typeof(RagDbContext).Assembly);
 
 This keeps persistence mapping out of domain entities.
 
-## API Behavior
+## RAG Flow
 
-Implemented Phase 0 behavior:
+Implemented behavior:
 
-- `POST /api/v1/ingestions` creates a pending ingestion job.
+- `POST /api/v1/ingestions` ingests `.md` and `.txt` files from a local path.
 - `GET /api/v1/ingestions/{id}` returns a persisted ingestion job.
 - `GET /api/v1/documents` reads documents from SQLite.
-- `POST /api/v1/search` is a placeholder.
-- `POST /api/v1/ask` is a placeholder.
+- `POST /api/v1/search` embeds the query, scores stored chunks with cosine similarity, and returns ranked hits.
+- `POST /api/v1/ask` retrieves top chunks, builds a grounded prompt, calls the chat model, and returns an answer with citations.
 
-Phase 1 should implement the first naive RAG loop behind `/search` and `/ask`.
+The current vector search is intentionally simple: embeddings are generated with Ollama and held only in memory during the request. Chunk embeddings are recomputed on each search. Persistent vector storage is deferred until a later phase.
 
 ```mermaid
 sequenceDiagram
     participant Client
     participant API as ProjectRag.Api
+    participant Ingest as Text Ingestion
     participant EF as RagDbContext
     participant DB as SQLite
+    participant Embed as Ollama Embeddings
+    participant Chat as Ollama Chat
 
     Client->>API: POST /api/v1/ingestions
-    API->>EF: Add IngestionJob(Pending)
-    EF->>DB: INSERT IngestionJobs
-    DB-->>EF: Saved
-    EF-->>API: SaveChangesAsync complete
-    API-->>Client: 202 Accepted + IngestionJobResponse
+    API->>Ingest: Read .md/.txt files and chunk text
+    Ingest->>EF: Add Documents and DocumentChunks
+    EF->>DB: INSERT Documents, DocumentChunks, IngestionJobs
+    API-->>Client: 202 Accepted + completed IngestionJobResponse
 
-    Client->>API: GET /api/v1/ingestions/{id}
-    API->>EF: AsNoTracking query
-    EF->>DB: SELECT IngestionJobs
-    DB-->>EF: Matching row
-    EF-->>API: IngestionJobResponse
-    API-->>Client: 200 OK
+    Client->>API: POST /api/v1/search
+    API->>EF: Load chunks
+    EF->>DB: SELECT DocumentChunks
+    API->>Embed: Embed query and chunk text
+    API-->>Client: Ranked SearchResponse
+
+    Client->>API: POST /api/v1/ask
+    API->>EF: Retrieve relevant chunks
+    API->>Embed: Embed query and chunk text
+    API->>Chat: Grounded prompt with top chunks
+    Chat-->>API: Answer text
+    API-->>Client: AskResponse with citations
 ```
 
 ## Testing Strategy
@@ -202,24 +213,17 @@ Current integration tests use:
 - `WebApplicationFactory<Program>`
 - SQLite in-memory database
 - DI replacement of `RagDbContext`
+- fake embedding generator
+- fake chat client
 
-This verifies API + DI + EF Core behavior without mutating the developer's local SQLite file.
+This verifies API + DI + EF Core + retrieval/answer behavior without mutating the developer's local SQLite file and without requiring Ollama during tests.
 
-## Phase 1 Direction
+## Current Limitations
 
-Phase 1 should add naive RAG over local text or markdown files:
-
-```text
-question -> embed question -> vector search -> prompt with top chunks -> answer
-```
-
-Recommended additions:
-
-- sample text/markdown documents
-- simple ingestion command or endpoint
-- in-memory vector store
-- embedding abstraction
-- search result model
-- answer response with citations
-
-Do not add hybrid search, query rewriting, reranking, or agent planning until later phases.
+- Ingestion runs inline in the API request.
+- Only `.md` and `.txt` files are supported.
+- Chunking is paragraph/character based, not semantic or token based.
+- Chunk embeddings are recomputed on each search.
+- Vector search is in-memory cosine scoring, not a persistent vector database.
+- `/ask` is grounded by prompt instruction and citations, but claim-level citation validation is not implemented.
+- Hybrid retrieval, query rewriting, RRF fusion, reranking, scanned PDFs, and agentic behavior are later phases.

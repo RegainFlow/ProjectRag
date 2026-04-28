@@ -45,10 +45,11 @@ Avoid references from `Domain` to EF Core, ASP.NET Core, Infrastructure, or API.
 - Keep domain entities plain C#.
 - Use Fluent API configuration classes for EF mapping.
 - Keep API DTOs separate from EF entities.
-- Use `DateTimeOffset.UtcNow` for persisted timestamps.
+- Use `DateTime.UtcNow` for persisted timestamps while SQLite is the database because SQLite has provider limitations around ordering/comparing `DateTimeOffset`.
 - Use `CancellationToken` in async endpoint/database operations.
 - Use `AsNoTracking()` for read-only EF queries.
 - Keep local SQLite files and secrets out of source control.
+- Keep normal tests independent from Ollama by using fake `IEmbeddingGenerator` and `IChatClient` implementations.
 
 ## Testing
 

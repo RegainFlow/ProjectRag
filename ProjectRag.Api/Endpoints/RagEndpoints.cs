@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using ProjectRag.Application.Abstractions;
 using ProjectRag.Contracts;
 using ProjectRag.Domain.Entities;
 using ProjectRag.Domain.Enums;
@@ -21,6 +22,7 @@ public static class RagEndpoints
         group.MapPost("/ingestions", async (
             StartIngestionRequest request,
             RagDbContext db,
+            ITextDocumentIngestionService ingestionService,
             CancellationToken cancellationToken) =>
         {
             var job = new IngestionJob
@@ -32,7 +34,26 @@ public static class RagEndpoints
             };
 
             db.IngestionJobs.Add(job);
-            await db.SaveChangesAsync(cancellationToken);
+
+            try
+            {
+                job.Status = IngestionJobStatus.Running;
+                job.StartedAt = DateTime.UtcNow;
+                await db.SaveChangesAsync(cancellationToken);
+
+                await ingestionService.IngestPathAsync(job.SourcePath, cancellationToken);
+
+                job.Status = IngestionJobStatus.Completed;
+                job.CompletedAt = DateTime.UtcNow;
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                job.Status = IngestionJobStatus.Failed;
+                job.ErrorMessage = ex.Message;
+                job.CompletedAt = DateTime.UtcNow;
+                await db.SaveChangesAsync(cancellationToken);
+            }
 
             return Results.Accepted($"/api/v1/ingestions/{job.Id}", new IngestionJobResponse
             (
@@ -86,15 +107,44 @@ public static class RagEndpoints
             return Results.Ok(documents);
         });
 
-        group.MapPost("/search", (SearchRequest request) =>
-            Results.Ok(new SearchResponse(
-                request.Query,
-                Array.Empty<SearchHitResponse>())));
+        group.MapPost("/search", async (
+            SearchRequest request,
+            IVectorSearchService vectorSearch,
+            CancellationToken cancellationToken) =>
+        {
+            var hits = await vectorSearch.SearchAsync(request.Query, request.TopK, cancellationToken);
 
-        group.MapPost("/ask", (AskRequest request) =>
-        Results.Ok(new AskResponse(
-            "Phase 0 placeholder: RAG answer generation is not implemented yet.",
-            Array.Empty<CitationResponse>())));
+            var response = new SearchResponse(
+                request.Query,
+                hits.Select(x => new SearchHitResponse(
+                    x.ChunkId.ToString(),
+                    x.DocumentId.ToString(),
+                    x.Source,
+                    x.Text.Length <= 300 ? x.Text : x.Text[..300], // limit text preview size to 300
+                    x.Score)).ToList());
+
+            return Results.Ok(response);
+        });
+
+
+        group.MapPost("/ask", async (
+            AskRequest request,
+            IRagAnswerService ragAnswerService,
+            CancellationToken cancellationToken) =>
+        {
+            var answer = await ragAnswerService.AnswerAsync(request.Question, request.TopK, cancellationToken);
+
+            var response = new AskResponse(
+                answer.Answer,
+                answer.Citations.Select(x => new CitationResponse(
+                    x.DocumentId.ToString(),
+                    x.ChunkId.ToString(),
+                    x.Source,
+                    PageNumber: null,
+                    x.Score)).ToList());
+
+            return Results.Ok(response);
+        });
 
         return group;
     }

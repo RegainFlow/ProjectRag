@@ -2,7 +2,7 @@
 
 ProjectRag is a learning-first .NET RAG service. The project is being built in phases so each layer introduces one production retrieval-augmented generation capability at a time.
 
-Current status: Phase 0 foundation is implemented. The API shell, EF Core SQLite persistence, migrations, placeholder RAG endpoints, and initial integration tests are in place.
+Current status: Phase 1 naive RAG is implemented. The API can ingest local text/markdown files, persist documents and chunks in SQLite, run vector search with Ollama embeddings, and generate grounded answers with Ollama chat.
 
 ## Phase Roadmap
 
@@ -44,17 +44,26 @@ POST /search
 POST /ask
 ```
 
-`/search` and `/ask` are still placeholders for Phase 1.
+`/search` performs vector retrieval over ingested chunks. `/ask` retrieves relevant chunks, builds a grounded prompt, calls the configured chat model, and returns citations.
 
 ## Prerequisites
 
 - .NET 10 SDK
 - EF Core CLI tool matching the EF Core package major/minor used by the project
+- Ollama running locally for Phase 1 embeddings and chat
 
 Recommended EF tool setup:
 
 ```powershell
 dotnet tool update --global dotnet-ef --version 10.0.7
+```
+
+Recommended Ollama setup:
+
+```powershell
+ollama pull nomic-embed-text
+ollama pull llama3.2
+ollama list
 ```
 
 ## Local Development
@@ -88,6 +97,32 @@ dotnet run --project ProjectRag.Api
 
 OpenAPI is mapped in development with `MapOpenApi()`.
 
+Ingest the sample corpus with `ProjectRag.Api/ProjectRag.Api.http` or an HTTP client:
+
+```json
+{
+  "sourcePath": "samples/docs"
+}
+```
+
+Then search:
+
+```json
+{
+  "query": "late payment fees",
+  "topK": 5
+}
+```
+
+Then ask:
+
+```json
+{
+  "question": "What are the late payment fees?",
+  "topK": 5
+}
+```
+
 ## Configuration
 
 Local development uses SQLite:
@@ -95,6 +130,17 @@ Local development uses SQLite:
 ```json
 "ConnectionStrings": {
   "ProjectRagDb": "Data Source=projectrag.dev.sqlite"
+}
+```
+
+Local AI uses Ollama:
+
+```json
+"AI": {
+  "OllamaEndpoint": "http://localhost:11434",
+  "ChatModel": "llama3.2",
+  "EmbeddingModel": "nomic-embed-text",
+  "TimeoutSeconds": 300
 }
 ```
 
@@ -107,3 +153,5 @@ The SQLite database file is local runtime state and should not be committed. Sec
 - EF Core SQLite provider: https://learn.microsoft.com/en-us/ef/core/providers/sqlite/
 - EF Core migrations: https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/
 - ASP.NET Core integration tests: https://learn.microsoft.com/en-us/aspnet/core/test/integration-tests
+- Microsoft.Extensions.AI local AI quickstart with Ollama: https://learn.microsoft.com/en-us/dotnet/ai/quickstarts/quickstart-local-ai
+- Ollama embeddings: https://docs.ollama.com/capabilities/embeddings
