@@ -1,10 +1,12 @@
-﻿using Microsoft.AspNetCore.Hosting;
+﻿using Azure.AI.DocumentIntelligence;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using ProjectRag.Application.Abstractions;
 using ProjectRag.Infrastructure;
 
 namespace ProjectRag.Tests.Support;
@@ -21,10 +23,13 @@ public sealed class RagApiFactory : WebApplicationFactory<Program>, IDisposable
         {
             services.RemoveAll<IEmbeddingGenerator<string, Embedding<float>>>();
             services.RemoveAll<IChatClient>();
+            services.RemoveAll<IDocumentExtractor>();
+            services.RemoveAll<DocumentIntelligenceClient>();
             services.RemoveAll<DbContextOptions<RagDbContext>>();
 
             services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>, FakeEmbeddingGenerator>();
             services.AddSingleton<IChatClient, FakeChatClient>();
+            services.AddSingleton<IDocumentExtractor, FakeDocumentExtractor>();
 
             services.AddDbContext<RagDbContext>(options =>
                 options.UseSqlite(_connection));

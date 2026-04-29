@@ -4,7 +4,7 @@ using ProjectRag.Application.Models;
 
 namespace ProjectRag.Infrastructure.AI;
 
-public class RagAnswerService : IRagAnswerService
+internal sealed class RagAnswerService : IRagAnswerService
 {
     private readonly IVectorSearchService _vectorSearch;
     private readonly IChatClient _chatClient;
@@ -61,7 +61,10 @@ public class RagAnswerService : IRagAnswerService
                 hit.DocumentId,
                 hit.ChunkId,
                 hit.Source,
-                hit.Score
+                hit.Score,
+                hit.PageNumber,
+                hit.Kind,
+                hit.SectionTitle
                 ))
             .ToList();
 
@@ -78,8 +81,12 @@ public class RagAnswerService : IRagAnswerService
                 ChunkId: {hit.ChunkId}
                 Source: {hit.Source}
                 Score: {hit.Score}
+                PageNumber: {hit.PageNumber}
+                Kind: {hit.Kind}
+                Section: {hit.SectionTitle}
                 Text:
                 {hit.Text}
+
                 """));
     }
 }

@@ -1,6 +1,6 @@
 ﻿namespace ProjectRag.Infrastructure.Options;
 
-public sealed class AiOptions
+internal sealed class AiOptions
 {
     public const string SectionName = "AI";
 

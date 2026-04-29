@@ -3,22 +3,28 @@ using ProjectRag.Application.Abstractions;
 using ProjectRag.Domain.Entities;
 using ProjectRag.Domain.Enums;
 using System.Security.Cryptography;
+using System.Text.Json;
 
 namespace ProjectRag.Infrastructure.Ingestion;
 
-public sealed class FileSystemTextDocumentIngestionService : ITextDocumentIngestionService
+internal sealed class FileSystemDocumentIngestionService : ITextDocumentIngestionService
 {
-    private static readonly string[] SupportedExtensions = [".md", ".txt"];
+    private static readonly string[] TextExtensions = [".md", ".txt"];
+    private static readonly string[] ScannedExtensions = [".pdf", ".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"];
+    private static readonly string[] SupportedExtensions = [.. TextExtensions, .. ScannedExtensions];
 
     private readonly RagDbContext _db;
     private readonly ITextChunker _chunker;
+    private readonly IDocumentExtractor _documentExtractor;
 
-    public FileSystemTextDocumentIngestionService(
+    public FileSystemDocumentIngestionService(
         RagDbContext db,
-        ITextChunker chunker)
+        ITextChunker chunker,
+        IDocumentExtractor documentExtractor)
     {
         _db = db;
         _chunker = chunker;
+        _documentExtractor = documentExtractor;
     }
 
     public async Task IngestPathAsync(string sourcePath, CancellationToken cancellationToken)
@@ -33,8 +39,10 @@ public sealed class FileSystemTextDocumentIngestionService : ITextDocumentIngest
 
     private async Task IngestFileAsync(string filePath, CancellationToken cancellationToken)
     {
-        var text = await File.ReadAllTextAsync(filePath, cancellationToken);
-        var contentHash = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text)));
+        var contentHash = await ComputeFileHashAsync(filePath, cancellationToken);
+        var extension = Path.GetExtension(filePath);
+
+        var isTextDocument = TextExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase);
 
         var existing = await _db.Documents
             .Include(x => x.Chunks)
@@ -56,7 +64,15 @@ public sealed class FileSystemTextDocumentIngestionService : ITextDocumentIngest
             existing.SourceType = Path.GetExtension(filePath).TrimStart('.').ToLowerInvariant();
             existing.UpdatedAt = DateTime.UtcNow;
 
-            AddChunks(existing, text);
+            if (isTextDocument)
+            {
+                var text = await File.ReadAllTextAsync(filePath, cancellationToken);
+                AddTextChunks(existing, text);
+            }
+            else
+            {
+                await AddExtractedChunksAsync(existing, filePath, cancellationToken);
+            }
         }
         else
         {
@@ -71,14 +87,51 @@ public sealed class FileSystemTextDocumentIngestionService : ITextDocumentIngest
                 UpdatedAt = DateTime.UtcNow,
             };
 
-            AddChunks(document, text);
+
+            if (isTextDocument)
+            {
+                var text = await File.ReadAllTextAsync(filePath, cancellationToken);
+                AddTextChunks(document, text);
+            }
+            else
+            {
+                await AddExtractedChunksAsync(document, filePath, cancellationToken);
+            }
+
             _db.Documents.Add(document);
         }
 
         await _db.SaveChangesAsync(cancellationToken);
     }
 
-    private void AddChunks(Document document, string text)
+    private async Task AddExtractedChunksAsync(Document document, string filePath, CancellationToken cancellationToken)
+    {
+        var extracted = await _documentExtractor.ExtractAsync(filePath, cancellationToken);
+        var currentSectionTitle = default(string);
+
+        foreach (var block in extracted.Blocks)
+        {
+            if (!string.IsNullOrWhiteSpace(block.SectionTitle))
+            {
+                currentSectionTitle = block.SectionTitle;
+            }
+
+            document.Chunks.Add(new DocumentChunk
+            {
+                Id = Guid.NewGuid(),
+                ChunkIndex = block.BlockIndex,
+                Text = block.Text,
+                PageNumber = block.PageNumber,
+                SectionTitle = block.SectionTitle ?? currentSectionTitle,
+                LayoutRole = block.LayoutRole,
+                BoundingRegionsJson = JsonSerializer.Serialize(block.BoundingRegions),
+                Kind = block.Kind,
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+    }
+
+    private void AddTextChunks(Document document, string text)
     {
         foreach (var chunk in _chunker.Chunk(text))
         {
@@ -112,6 +165,14 @@ public sealed class FileSystemTextDocumentIngestionService : ITextDocumentIngest
         }
 
         throw new FileNotFoundException($"Source path '{sourcePath}' was not found.", sourcePath);
+    }
+
+    private static async Task<string> ComputeFileHashAsync(string filePath, CancellationToken cancellationToken)
+    {
+        await using var stream = File.OpenRead(filePath);
+        var hash = await SHA256.HashDataAsync(stream, cancellationToken);
+
+        return Convert.ToHexString(hash);
     }
 
     private static bool IsSupportedFile(string path)

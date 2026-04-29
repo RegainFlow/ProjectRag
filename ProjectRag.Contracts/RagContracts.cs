@@ -30,7 +30,10 @@ public sealed record SearchHitResponse(
     string DocumentId,
     string SourceUri,
     string TextPreview,
-    double Score);
+    double Score,
+    int? PageNumber,
+    string Kind,
+    string? SectionTitle);
 
 public sealed record AskRequest(
     string Question,
@@ -45,4 +48,6 @@ public sealed record CitationResponse(
     string ChunkId,
     string SourceUri,
     int? PageNumber,
-    double Score);
+    double Score,
+    string Kind,
+    string? SectionTitle);

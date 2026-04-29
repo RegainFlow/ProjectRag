@@ -1,6 +1,6 @@
 # Architecture
 
-ProjectRag is a layered .NET RAG service. The architecture is intentionally conservative: establish clear boundaries, persistence, API contracts, testability, and a simple RAG loop before introducing scanned PDFs, hybrid retrieval, reranking, or agentic orchestration.
+ProjectRag is a layered .NET RAG service. The architecture is intentionally conservative: establish clear boundaries, persistence, API contracts, testability, scanned document extraction, and a simple RAG loop before introducing persistent vector storage, hybrid retrieval, reranking, or agentic orchestration.
 
 ## Layers
 
@@ -24,11 +24,13 @@ ProjectRag.Infrastructure
   Entity configurations
   Migrations
   Text ingestion
+  Azure AI Document Intelligence extraction
+  Layout-aware chunk normalization
   Ollama AI client registration
   In-memory cosine vector search
 
 ProjectRag.Application
-  Future orchestration/services
+  Application abstractions and cross-layer models
 
 ProjectRag.Ingestion.Worker
   Future background ingestion processing
@@ -51,6 +53,18 @@ Tests -> Api, Contracts, Infrastructure
 ```
 
 The domain project should stay independent. It should not reference EF Core, ASP.NET Core, Infrastructure, or API.
+
+## Type Visibility
+
+Keep the public surface area small:
+
+- Infrastructure concrete services/configurations/options: `internal`.
+- Infrastructure DI entry point and `RagDbContext`: `public`.
+- Application abstractions/models: `public`.
+- Domain entities/enums: `public`.
+- Contract request/response DTOs: `public`.
+- API endpoint mapping classes: `internal`.
+- `Program`: `public partial` so integration tests can use `WebApplicationFactory<Program>`.
 
 ```mermaid
 flowchart LR
@@ -133,6 +147,8 @@ erDiagram
         string Text
         int PageNumber
         string SectionTitle
+        string LayoutRole
+        string BoundingRegionsJson
         int Kind
         datetime CreatedAt
     }
@@ -168,7 +184,7 @@ This keeps persistence mapping out of domain entities.
 
 Implemented behavior:
 
-- `POST /api/v1/ingestions` ingests `.md` and `.txt` files from a local path.
+- `POST /api/v1/ingestions` ingests `.md`, `.txt`, PDF, and common image files from a local path.
 - `GET /api/v1/ingestions/{id}` returns a persisted ingestion job.
 - `GET /api/v1/documents` reads documents from SQLite.
 - `POST /api/v1/search` embeds the query, scores stored chunks with cosine similarity, and returns ranked hits.
@@ -176,18 +192,35 @@ Implemented behavior:
 
 The current vector search is intentionally simple: embeddings are generated with Ollama and held only in memory during the request. Chunk embeddings are recomputed on each search. Persistent vector storage is deferred until a later phase.
 
+Text and markdown files use paragraph-based fixed-size chunking. Scanned documents use Azure AI Document Intelligence `prebuilt-layout`, then a layout-aware rule-based chunking strategy:
+
+- Sort extracted layout blocks by document span.
+- Use headings as section boundaries.
+- Keep tables as separate Markdown table chunks.
+- Merge nearby paragraph fragments under the current heading.
+- Preserve page number, section title, layout role, and bounding regions on chunks.
+
 ```mermaid
 sequenceDiagram
     participant Client
     participant API as ProjectRag.Api
-    participant Ingest as Text Ingestion
+    participant Ingest as Document Ingestion
+    participant Extract as Azure Document Intelligence
+    participant Normalize as Layout Normalizer
     participant EF as RagDbContext
     participant DB as SQLite
     participant Embed as Ollama Embeddings
     participant Chat as Ollama Chat
 
     Client->>API: POST /api/v1/ingestions
-    API->>Ingest: Read .md/.txt files and chunk text
+    API->>Ingest: Read text/scanned files
+    alt Scanned PDF/image
+        Ingest->>Extract: Analyze with prebuilt-layout
+        Extract->>Normalize: Paragraphs, tables, pages, bounding regions
+        Normalize-->>Ingest: Layout-aware chunks
+    else Text/Markdown
+        Ingest->>Ingest: Paragraph-based chunking
+    end
     Ingest->>EF: Add Documents and DocumentChunks
     EF->>DB: INSERT Documents, DocumentChunks, IngestionJobs
     API-->>Client: 202 Accepted + completed IngestionJobResponse
@@ -215,15 +248,17 @@ Current integration tests use:
 - DI replacement of `RagDbContext`
 - fake embedding generator
 - fake chat client
+- fake document extractor
+- direct tests for layout block normalization
 
-This verifies API + DI + EF Core + retrieval/answer behavior without mutating the developer's local SQLite file and without requiring Ollama during tests.
+This verifies API + DI + EF Core + extraction/ingestion + retrieval/answer behavior without mutating the developer's local SQLite file and without requiring Ollama or Azure during tests.
 
 ## Current Limitations
 
 - Ingestion runs inline in the API request.
-- Only `.md` and `.txt` files are supported.
-- Chunking is paragraph/character based, not semantic or token based.
+- Ingestion runs inline in the API request.
+- Chunking is paragraph/layout based, not semantic, recursive, token based, or overlapping.
 - Chunk embeddings are recomputed on each search.
 - Vector search is in-memory cosine scoring, not a persistent vector database.
 - `/ask` is grounded by prompt instruction and citations, but claim-level citation validation is not implemented.
-- Hybrid retrieval, query rewriting, RRF fusion, reranking, scanned PDFs, and agentic behavior are later phases.
+- Hybrid retrieval, query rewriting, RRF fusion, reranking, and agentic behavior are later phases.

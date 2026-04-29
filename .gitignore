@@ -496,3 +496,7 @@ appsettings.*.Local.json
 appsettings.*.local.json
 .env.*
 !.env.example
+
+# ProjectRag local scanned sample datasets
+ProjectRag.Api/samples/scanned/*
+!ProjectRag.Api/samples/scanned/README.md

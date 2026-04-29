@@ -7,12 +7,20 @@
 GET {{baseUrl}}/health
 Accept: application/json
 
-### Create ingestion job
+### Create ingestion job for text documents
 POST {{baseUrl}}/ingestions
 Content-Type: application/json
 Accept: application/json
 {
   "sourcePath": "samples/docs"
+}
+
+### Create ingestion job for scanned documents
+POST {{baseUrl}}/ingestions
+Content-Type: application/json
+Accept: application/json
+{
+  "sourcePath": "samples/scanned/azure"
 }
 
 ### Get ingestion job
@@ -23,7 +31,7 @@ Accept: application/json
 GET {{baseUrl}}/documents
 Accept: application/json
 
-### Search documents
+### Search text documents
 POST {{baseUrl}}/search
 Content-Type: application/json
 Accept: application/json
@@ -32,11 +40,29 @@ Accept: application/json
   "topK": 5
 }
 
-### Ask documents
+### Search scanned documents
+POST {{baseUrl}}/search
+Content-Type: application/json
+Accept: application/json
+{
+  "query": "Document Intelligence studio",
+  "topK": 5
+}
+
+### Ask text documents
 POST {{baseUrl}}/ask
 Content-Type: application/json
 Accept: application/json
 {
   "question": "What are the late payment fees?",
+  "topK": 5
+}
+
+### Ask scanned documents
+POST {{baseUrl}}/ask
+Content-Type: application/json
+Accept: application/json
+{
+  "question": "What can Document Intelligence extract?",
   "topK": 5
 }

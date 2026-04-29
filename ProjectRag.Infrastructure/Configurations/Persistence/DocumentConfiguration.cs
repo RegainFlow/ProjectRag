@@ -4,7 +4,7 @@ using ProjectRag.Domain.Entities;
 
 namespace ProjectRag.Infrastructure.Configurations.Persistence;
 
-public sealed class DocumentConfiguration : IEntityTypeConfiguration<Document>
+internal sealed class DocumentConfiguration : IEntityTypeConfiguration<Document>
 {
     public void Configure(EntityTypeBuilder<Document> builder)
     {

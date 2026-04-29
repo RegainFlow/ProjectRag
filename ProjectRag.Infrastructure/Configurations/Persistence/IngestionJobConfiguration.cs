@@ -4,7 +4,7 @@ using ProjectRag.Domain.Entities;
 
 namespace ProjectRag.Infrastructure.Configurations.Persistence;
 
-public sealed class IngestionJobConfiguration : IEntityTypeConfiguration<IngestionJob>
+internal sealed class IngestionJobConfiguration : IEntityTypeConfiguration<IngestionJob>
 {
     public void Configure(EntityTypeBuilder<IngestionJob> builder)
     {

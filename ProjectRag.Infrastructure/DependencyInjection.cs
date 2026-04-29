@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Azure.AI.DocumentIntelligence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -6,6 +7,7 @@ using Microsoft.Extensions.Options;
 using OllamaSharp;
 using ProjectRag.Application.Abstractions;
 using ProjectRag.Infrastructure.AI;
+using ProjectRag.Infrastructure.DocumentIntelligence;
 using ProjectRag.Infrastructure.Ingestion;
 using ProjectRag.Infrastructure.Options;
 using ProjectRag.Infrastructure.VectorSearch;
@@ -19,15 +21,18 @@ public static class DependencyInjection
         IConfiguration configuration)
     {
         services.AddPersistence(configuration);
-        services.AddAiProviders(configuration);
+        services.AddOllama(configuration);
+        services.AddAzureDocumentIntelligence(configuration);
+
         services.AddIngestion(configuration);
-        services.AddVectorSearch(configuration);
-        services.AddAiGeneration(configuration);
+
+        services.AddScoped<IVectorSearchService, InMemoryVectorSearchService>();
+        services.AddScoped<IRagAnswerService, RagAnswerService>();
 
         return services;
     }
 
-    public static IServiceCollection AddPersistence(
+    private static IServiceCollection AddPersistence(
         this IServiceCollection services,
         IConfiguration configuration)
     {
@@ -39,12 +44,11 @@ public static class DependencyInjection
         return services;
     }
 
-    public static IServiceCollection AddAiProviders(
+    private static IServiceCollection AddOllama(
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.Configure<AiOptions>(
-            configuration.GetSection(AiOptions.SectionName));
+        services.Configure<AiOptions>(configuration.GetSection(AiOptions.SectionName));
 
         services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(serviceProvider =>
         {
@@ -79,27 +83,42 @@ public static class DependencyInjection
         return services;
     }
 
-    public static IServiceCollection AddIngestion(
+    private static IServiceCollection AddAzureDocumentIntelligence(
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.AddSingleton<ITextChunker, SimpleTextChunker>();
-        services.AddScoped<ITextDocumentIngestionService, FileSystemTextDocumentIngestionService>();
+        services.Configure<DocumentIntelligenceOptions>(configuration.GetSection(DocumentIntelligenceOptions.SectionName));
+        services.AddSingleton<DocumentIntelligenceClient>(serviceProvider =>
+        {
+            var options = serviceProvider.GetRequiredService<IOptions<DocumentIntelligenceOptions>>().Value;
+
+            if (string.IsNullOrWhiteSpace(options.Endpoint))
+            {
+                throw new InvalidOperationException("Document Intelligence endpoint is not configured.");
+            }
+
+            if (string.IsNullOrWhiteSpace(options.ApiKey))
+            {
+                throw new InvalidOperationException("Document Intelligence apikey is not configured.");
+            }
+
+            return new DocumentIntelligenceClient(
+                new Uri(options.Endpoint),
+                new Azure.AzureKeyCredential(options.ApiKey));
+        });
 
         return services;
     }
 
-    public static IServiceCollection AddVectorSearch(
+    private static IServiceCollection AddIngestion(
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        return services.AddScoped<IVectorSearchService, InMemoryVectorSearchService>();
-    }
+        services.AddSingleton<ITextChunker, SimpleTextChunker>();
+        services.AddSingleton<IDocumentExtractor, AzureDocumentIntelligenceExtractor>();
+        services.AddScoped<ITextDocumentIngestionService, FileSystemDocumentIngestionService>();
 
-    public static IServiceCollection AddAiGeneration(
-        this IServiceCollection services,
-        IConfiguration configuration)
-    {
-        return services.AddScoped<IRagAnswerService, RagAnswerService>();
+        return services;
     }
 }
+

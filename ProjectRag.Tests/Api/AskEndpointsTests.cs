@@ -53,6 +53,45 @@ public class AskEndpointsTests : IClassFixture<RagApiFactory>
             Assert.False(string.IsNullOrWhiteSpace(firstCitation.ChunkId));
             Assert.Equal(filePath, firstCitation.SourceUri);
             Assert.True(firstCitation.Score > 0);
+            Assert.Null(firstCitation.PageNumber);
+            Assert.Equal("Paragraph", firstCitation.Kind);
+        }
+        finally
+        {
+            tempDirectory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Ask_returns_layout_metadata_in_citations_for_scanned_documents()
+    {
+        var tempDirectory = Directory.CreateTempSubdirectory("projectrag-api-scanned-ask-test-");
+
+        try
+        {
+            var filePath = Path.Combine(tempDirectory.FullName, "invoice.pdf");
+
+            await File.WriteAllBytesAsync(filePath, [1, 2, 3, 4]);
+
+            var ingestResponse = await _client.PostAsJsonAsync(
+                "/api/v1/ingestions",
+                new StartIngestionRequest(filePath));
+
+            Assert.Equal(HttpStatusCode.Accepted, ingestResponse.StatusCode);
+
+            var askResponse = await _client.PostAsJsonAsync(
+                "/api/v1/ask",
+                new AskRequest("What is the amount due?", 5));
+
+            Assert.Equal(HttpStatusCode.OK, askResponse.StatusCode);
+
+            var body = await askResponse.Content.ReadFromJsonAsync<AskResponse>();
+
+            Assert.NotNull(body);
+            Assert.Contains(body.Citations, citation =>
+                citation.PageNumber == 1
+                && citation.Kind == "Paragraph"
+                && citation.SectionTitle == "Invoice 1001");
         }
         finally
         {

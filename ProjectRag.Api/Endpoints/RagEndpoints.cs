@@ -7,7 +7,7 @@ using ProjectRag.Infrastructure;
 
 namespace ProjectRag.Api.Endpoints;
 
-public static class RagEndpoints
+internal static class RagEndpoints
 {
     public static RouteGroupBuilder MapRagEndpoints(this RouteGroupBuilder group)
     {
@@ -121,7 +121,10 @@ public static class RagEndpoints
                     x.DocumentId.ToString(),
                     x.Source,
                     x.Text.Length <= 300 ? x.Text : x.Text[..300], // limit text preview size to 300
-                    x.Score)).ToList());
+                    x.Score,
+                    x.PageNumber,
+                    x.Kind.ToString(),
+                    x.SectionTitle)).ToList());
 
             return Results.Ok(response);
         });
@@ -140,8 +143,10 @@ public static class RagEndpoints
                     x.DocumentId.ToString(),
                     x.ChunkId.ToString(),
                     x.Source,
-                    PageNumber: null,
-                    x.Score)).ToList());
+                    x.PageNumber,
+                    x.Score,
+                    x.Kind.ToString(),
+                    x.SectionTitle)).ToList());
 
             return Results.Ok(response);
         });

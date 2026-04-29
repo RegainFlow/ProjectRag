@@ -10,5 +10,4 @@ public sealed class Document
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public List<DocumentChunk> Chunks { get; set; } = [];
-
 }

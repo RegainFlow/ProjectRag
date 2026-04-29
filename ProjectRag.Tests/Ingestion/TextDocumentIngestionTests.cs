@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using ProjectRag.Domain.Enums;
 using ProjectRag.Infrastructure.Ingestion;
 using ProjectRag.Tests.Support;
 
@@ -47,9 +48,10 @@ public sealed class TextDocumentIngestionTests
                 Late balances may receive a monthly fee after a grace period.
                 """);
 
-            var service = new FileSystemTextDocumentIngestionService(
+            var service = new FileSystemDocumentIngestionService(
                 db,
-                new SimpleTextChunker());
+                new SimpleTextChunker(),
+                new FakeDocumentExtractor());
 
             await service.IngestPathAsync(filePath, CancellationToken.None);
 
@@ -64,6 +66,54 @@ public sealed class TextDocumentIngestionTests
             Assert.NotEmpty(document.Chunks);
             Assert.Contains(document.Chunks, x => x.Text.Contains("Invoices are due"));
 
+        }
+        finally
+        {
+            tempDirectory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task IngestPathAsync_creates_layout_aware_chunks_for_scanned_document()
+    {
+        using var database = new SqliteTestDatabase();
+        await using var db = database.CreateContext();
+
+        var tempDirectory = Directory.CreateTempSubdirectory("projectrag-scanned-ingestions-test-");
+
+        try
+        {
+            var filePath = Path.Combine(tempDirectory.FullName, "invoice.pdf");
+
+            await File.WriteAllBytesAsync(filePath, [1, 2, 3, 4]);
+
+            var service = new FileSystemDocumentIngestionService(
+                db,
+                new SimpleTextChunker(),
+                new FakeDocumentExtractor());
+
+            await service.IngestPathAsync(filePath, CancellationToken.None);
+
+            var document = await db.Documents
+                .Include(x => x.Chunks)
+                .SingleAsync();
+
+            Assert.Equal(Path.GetFullPath(filePath), document.SourceUri);
+            Assert.Equal("invoice", document.Title);
+            Assert.Equal("pdf", document.SourceType);
+
+            var heading = Assert.Single(document.Chunks, x => x.Kind == ChunkKind.Heading);
+
+            Assert.Equal(1, heading.PageNumber);
+            Assert.Equal("Invoice 1001", heading.SectionTitle);
+            Assert.Equal("title", heading.LayoutRole);
+            Assert.False(string.IsNullOrWhiteSpace(heading.BoundingRegionsJson));
+
+            var paragraph = Assert.Single(document.Chunks, x => x.Kind == ChunkKind.Paragraph);
+
+            Assert.Equal(1, paragraph.PageNumber);
+            Assert.Equal("Invoice 1001", paragraph.SectionTitle);
+            Assert.Contains("Total amount due", paragraph.Text);
         }
         finally
         {

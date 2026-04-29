@@ -6,7 +6,7 @@ using System.Numerics.Tensors;
 
 namespace ProjectRag.Infrastructure.VectorSearch;
 
-public class InMemoryVectorSearchService : IVectorSearchService
+internal sealed class InMemoryVectorSearchService : IVectorSearchService
 {
     private readonly RagDbContext _db;
     private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingGenerator;
@@ -48,7 +48,10 @@ public class InMemoryVectorSearchService : IVectorSearchService
                 chunk.Id,
                 chunk.Document?.SourceUri ?? "",
                 chunk.Text,
-                score));
+                score,
+                chunk.PageNumber,
+                chunk.Kind,
+                chunk.SectionTitle));
         }
 
         return results

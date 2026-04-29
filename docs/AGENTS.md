@@ -25,7 +25,7 @@ Keep changes aligned with the active phase. Do not introduce later-phase abstrac
 - `ProjectRag.Api` owns HTTP endpoints and the application composition root.
 - `ProjectRag.Contracts` owns API DTOs.
 - `ProjectRag.Domain` owns entities and enums.
-- `ProjectRag.Infrastructure` owns EF Core, SQLite, migrations, and persistence configuration.
+- `ProjectRag.Infrastructure` owns EF Core, SQLite, migrations, persistence configuration, provider integrations, document extraction, chunking implementations, and vector search implementations.
 - `ProjectRag.Tests` owns test coverage.
 
 Dependency direction should stay:
@@ -42,6 +42,12 @@ Avoid references from `Domain` to EF Core, ASP.NET Core, Infrastructure, or API.
 ## Coding Conventions
 
 - Prefer official Microsoft/.NET templates and documentation before hand-rolled conventions.
+- Keep project visibility intentional:
+  - Infrastructure concrete services/configurations/options should be `internal`.
+  - Infrastructure DI entry point and `RagDbContext` should stay `public`.
+  - Application abstractions/models should stay `public`.
+  - Domain entities/enums should stay `public`.
+  - API endpoint mapping classes should be `internal`.
 - Keep domain entities plain C#.
 - Use Fluent API configuration classes for EF mapping.
 - Keep API DTOs separate from EF entities.
@@ -50,6 +56,8 @@ Avoid references from `Domain` to EF Core, ASP.NET Core, Infrastructure, or API.
 - Use `AsNoTracking()` for read-only EF queries.
 - Keep local SQLite files and secrets out of source control.
 - Keep normal tests independent from Ollama by using fake `IEmbeddingGenerator` and `IChatClient` implementations.
+- Keep normal tests independent from Azure by using fake `IDocumentExtractor` implementations.
+- Do not commit real Azure keys, local scanned datasets, real customer documents, or local SQLite database files.
 
 ## Testing
 
@@ -64,6 +72,8 @@ Do not test against the developer's local SQLite database file.
 When adding or changing behavior, update tests in the same change. This applies to new endpoints, services, contracts, persistence mappings, ingestion behavior, retrieval logic, and answer-generation logic. Prefer focused tests that prove the new behavior through the narrowest useful boundary. For API endpoints, add or update integration tests that exercise the HTTP route and verify the response contract.
 
 When adding, removing, or changing API endpoints, update `ProjectRag.Api/ProjectRag.Api.http` in the same change with a simple runnable request example. Keep examples realistic, valid JSON, and aligned with the `/api/v1` route prefix.
+
+When adding or changing extraction/chunking behavior, add focused tests that prove the behavior without calling Azure. Layout-aware scanned ingestion should preserve page number, section title, chunk kind, and bounding-region metadata when those values are available.
 
 ## Verification Commands
 

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ProjectRag.Infrastructure;
 
@@ -10,9 +11,11 @@ using ProjectRag.Infrastructure;
 namespace ProjectRag.Infrastructure.Migrations
 {
     [DbContext(typeof(RagDbContext))]
-    partial class RagDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260428053234_AddDocumentChunkLayoutMetadata")]
+    partial class AddDocumentChunkLayoutMetadata
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.7");

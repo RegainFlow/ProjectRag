@@ -2,13 +2,13 @@
 
 ProjectRag is a learning-first .NET RAG service. The project is being built in phases so each layer introduces one production retrieval-augmented generation capability at a time.
 
-Current status: Phase 1 naive RAG is implemented. The API can ingest local text/markdown files, persist documents and chunks in SQLite, run vector search with Ollama embeddings, and generate grounded answers with Ollama chat.
+Current status: Phase 2 scanned document ingestion is implemented. The API can ingest local text/markdown files plus scanned PDFs/images with Azure AI Document Intelligence, persist layout-aware chunks in SQLite, run vector search with Ollama embeddings, and generate grounded answers with Ollama chat.
 
 ## Phase Roadmap
 
 1. Phase 0: .NET Minimal API foundation, EF Core, SQLite, OpenAPI, clean layering.
 2. Phase 1: Naive vector-only RAG over plain text or markdown documents.
-3. Phase 2: Scanned PDF ingestion with Azure AI Document Intelligence.
+3. Phase 2: Scanned PDF/image ingestion with Azure AI Document Intelligence.
 4. Phase 3: Persistent local RAG and idempotent ingestion.
 5. Phase 4+: Hybrid retrieval, query rewriting, RRF fusion, reranking, grounded answers, evaluation, and agentic RAG.
 
@@ -44,13 +44,14 @@ POST /search
 POST /ask
 ```
 
-`/search` performs vector retrieval over ingested chunks. `/ask` retrieves relevant chunks, builds a grounded prompt, calls the configured chat model, and returns citations.
+`/search` performs vector retrieval over ingested chunks. `/ask` retrieves relevant chunks, builds a grounded prompt, calls the configured chat model, and returns citations. Scanned document citations can include page and section metadata.
 
 ## Prerequisites
 
 - .NET 10 SDK
 - EF Core CLI tool matching the EF Core package major/minor used by the project
 - Ollama running locally for Phase 1 embeddings and chat
+- Azure AI Document Intelligence resource for Phase 2 scanned PDF/image ingestion
 
 Recommended EF tool setup:
 
@@ -123,6 +124,16 @@ Then ask:
 }
 ```
 
+For scanned documents, place local PDF/image files under `ProjectRag.Api/samples/scanned/` and ingest:
+
+```json
+{
+  "sourcePath": "samples/scanned"
+}
+```
+
+Scanned sample files should stay local-only. The committed markdown files under `ProjectRag.Api/samples/docs/` are synthetic project-owned test data.
+
 ## Configuration
 
 Local development uses SQLite:
@@ -144,6 +155,24 @@ Local AI uses Ollama:
 }
 ```
 
+Azure AI Document Intelligence uses local secrets for real credentials:
+
+```json
+"DocumentIntelligence": {
+  "Endpoint": "",
+  "ApiKey": "",
+  "ModelId": "prebuilt-layout"
+}
+```
+
+Set local secrets from the API project:
+
+```powershell
+dotnet user-secrets init --project .\ProjectRag.Api\ProjectRag.Api.csproj
+dotnet user-secrets set "DocumentIntelligence:Endpoint" "https://YOUR-RESOURCE.cognitiveservices.azure.com/" --project .\ProjectRag.Api\ProjectRag.Api.csproj
+dotnet user-secrets set "DocumentIntelligence:ApiKey" "YOUR-KEY" --project .\ProjectRag.Api\ProjectRag.Api.csproj
+```
+
 The SQLite database file is local runtime state and should not be committed. Secrets should not be stored in committed `appsettings` files. Use user-secrets, environment variables, or deployment secret stores for credentials.
 
 ## References
@@ -155,3 +184,5 @@ The SQLite database file is local runtime state and should not be committed. Sec
 - ASP.NET Core integration tests: https://learn.microsoft.com/en-us/aspnet/core/test/integration-tests
 - Microsoft.Extensions.AI local AI quickstart with Ollama: https://learn.microsoft.com/en-us/dotnet/ai/quickstarts/quickstart-local-ai
 - Ollama embeddings: https://docs.ollama.com/capabilities/embeddings
+- Azure AI Document Intelligence layout model: https://learn.microsoft.com/azure/ai-services/document-intelligence/prebuilt/layout
+- ASP.NET Core app secrets: https://learn.microsoft.com/en-us/aspnet/core/security/app-secrets

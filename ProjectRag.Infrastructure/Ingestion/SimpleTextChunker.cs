@@ -3,7 +3,7 @@ using ProjectRag.Application.Models;
 
 namespace ProjectRag.Infrastructure.Ingestion;
 
-public sealed class SimpleTextChunker : ITextChunker
+internal sealed class SimpleTextChunker : ITextChunker
 {
     private const int MaxChunkSize = 1_200;
 

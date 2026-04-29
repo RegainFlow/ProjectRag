@@ -11,6 +11,8 @@ public sealed class DocumentChunk
     public string Text { get; set; } = "";
     public int? PageNumber { get; set; }
     public string? SectionTitle { get; set; }
+    public string? LayoutRole { get; set; }
+    public string? BoundingRegionsJson { get; set; }
     public ChunkKind Kind { get; set; }
     public DateTime CreatedAt { get; set; }
 }
