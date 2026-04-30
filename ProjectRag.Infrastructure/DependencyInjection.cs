@@ -23,10 +23,9 @@ public static class DependencyInjection
         services.AddPersistence(configuration);
         services.AddOllama(configuration);
         services.AddAzureDocumentIntelligence(configuration);
-
+        services.AddVectorSearch(configuration);
         services.AddIngestion(configuration);
 
-        services.AddScoped<IVectorSearchService, InMemoryVectorSearchService>();
         services.AddScoped<IRagAnswerService, RagAnswerService>();
 
         return services;
@@ -40,6 +39,21 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException("Connection string 'ProjectRagDb' was not found.");
 
         services.AddDbContext<RagDbContext>(options => options.UseSqlite(connectionString));
+
+        return services;
+    }
+
+    private static IServiceCollection AddVectorSearch(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        var connectionString = configuration.GetConnectionString("ProjectRagDb")
+            ?? throw new InvalidOperationException("Connection string 'ProjectRagDb' was not found.");
+
+        services.AddSqliteCollection<string, DocumentChunkVectorRecord>("document_chunks", connectionString);
+
+        services.AddScoped<IVectorIndexService, MevdVectorIndexService>();
+        services.AddScoped<IVectorSearchService, MevdVectorSearchService>();
 
         return services;
     }

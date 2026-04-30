@@ -16,7 +16,6 @@ internal sealed class RagAnswerService : IRagAnswerService
         _vectorSearch = vectorSearch;
         _chatClient = chatClient;
     }
-
     public async Task<RagAnswer> AnswerAsync(
         string question,
         int topK,

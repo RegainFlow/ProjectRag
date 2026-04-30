@@ -1,16 +1,20 @@
-﻿using ProjectRag.Domain.Entities;
+﻿using Microsoft.Extensions.Options;
+using Microsoft.SemanticKernel.Connectors.SqliteVec;
+using ProjectRag.Application.Models;
+using ProjectRag.Domain.Entities;
 using ProjectRag.Domain.Enums;
+using ProjectRag.Infrastructure.Options;
 using ProjectRag.Infrastructure.VectorSearch;
 using ProjectRag.Tests.Support;
 
 namespace ProjectRag.Tests.VectorSearch;
 
-public sealed class InMemoryVectorSearchServiceTests
+public sealed class MevdVectorSearchServiceTests
 {
     [Fact]
-    public async Task SearchAsync_returns_most_similar_chunks_first()
+    public async Task SearchAsync_returns_persisted_vector_results()
     {
-        using var database = new SqliteTestDatabase();
+        using var database = new SqliteFileTestDatabase();
         await using var db = database.CreateContext();
 
         var latePaymentDocument = new Document
@@ -31,7 +35,6 @@ public sealed class InMemoryVectorSearchServiceTests
             Text = "Late balances may receive a monthly fee after a grace period.",
             Kind = ChunkKind.Paragraph,
             CreatedAt = DateTime.UtcNow
-
         });
 
         var securityDocument = new Document
@@ -57,9 +60,30 @@ public sealed class InMemoryVectorSearchServiceTests
         db.Documents.AddRange(latePaymentDocument, securityDocument);
         await db.SaveChangesAsync();
 
-        var service = new InMemoryVectorSearchService(db, new FakeEmbeddingGenerator());
+        using var collection = new SqliteCollection<string, DocumentChunkVectorRecord>(database.ConnectionString, "document_chunks");
 
-        var results = await service.SearchAsync("late payment fees", topK: 2, CancellationToken.None);
+        var options = Options.Create(new AiOptions
+        {
+            EmbeddingModel = "fake-embedding-model"
+        });
+
+        var indexService = new MevdVectorIndexService(collection, new FakeEmbeddingGenerator(), options);
+
+        await indexService.UpsertChunksAsync(
+            db.DocumentChunks.Select(chunk => new VectorIndexChunk(
+            chunk.DocumentId,
+            chunk.Id,
+            chunk.Document!.SourceUri,
+            chunk.Text)).ToList(),
+        CancellationToken.None);
+
+        var searchService = new MevdVectorSearchService(
+            db,
+            collection,
+            new FakeEmbeddingGenerator(),
+            options);
+
+        var results = await searchService.SearchAsync("late payment fees", topK: 2, CancellationToken.None);
 
         Assert.Equal(2, results.Count);
         Assert.Equal(latePaymentDocument.Id, results[0].DocumentId);
@@ -70,54 +94,20 @@ public sealed class InMemoryVectorSearchServiceTests
     [Fact]
     public async Task SearchAsync_return_empty_results_for_blank_query()
     {
-        using var database = new SqliteTestDatabase();
+        using var database = new SqliteFileTestDatabase();
         await using var db = database.CreateContext();
 
-        var service = new InMemoryVectorSearchService(db, new FakeEmbeddingGenerator());
+        using var collection =
+            new SqliteCollection<string, DocumentChunkVectorRecord>(database.ConnectionString, "document_chunks");
+
+        var service = new MevdVectorSearchService(
+            db,
+            collection,
+            new FakeEmbeddingGenerator(),
+            Options.Create(new AiOptions()));
 
         var results = await service.SearchAsync("", topK: 5, CancellationToken.None);
 
         Assert.Empty(results);
-    }
-
-    [Fact]
-    public async Task SearchAsync_clamps_topK_to_valid_range()
-    {
-        using var database = new SqliteTestDatabase();
-        await using var db = database.CreateContext();
-
-        var document = new Document
-        {
-            Id = Guid.NewGuid(),
-            SourceUri = "samples/docs/late-payment-policy.md",
-            Title = "late-payment-policy",
-            ContentHash = "hash-1",
-            SourceType = "md",
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-
-        document.Chunks.Add(new DocumentChunk
-        {
-            Id = Guid.NewGuid(),
-            ChunkIndex = 0,
-            Text = "Invoices are due 30 calendar days after the invoice date.",
-            Kind = ChunkKind.Paragraph,
-            CreatedAt = DateTime.UtcNow
-        });
-
-        db.Documents.Add(document);
-        await db.SaveChangesAsync();
-
-        var service = new InMemoryVectorSearchService(
-            db,
-            new FakeEmbeddingGenerator());
-
-        var results = await service.SearchAsync(
-            "invoice payment",
-            topK: 0,
-            CancellationToken.None);
-
-        Assert.Single(results);
     }
 }

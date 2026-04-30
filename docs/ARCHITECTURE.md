@@ -1,6 +1,6 @@
 # Architecture
 
-ProjectRag is a layered .NET RAG service. The architecture is intentionally conservative: establish clear boundaries, persistence, API contracts, testability, scanned document extraction, and a simple RAG loop before introducing persistent vector storage, hybrid retrieval, reranking, or agentic orchestration.
+ProjectRag is a layered .NET RAG service. The architecture is intentionally conservative: establish clear boundaries, persistence, API contracts, testability, scanned document extraction, a simple RAG loop, and local persistent vector storage before introducing hybrid retrieval, reranking, or agentic orchestration.
 
 ## Layers
 
@@ -21,13 +21,14 @@ ProjectRag.Domain
 ProjectRag.Infrastructure
   EF Core DbContext
   SQLite provider registration
+  MEVD SQLiteVec vector collection
   Entity configurations
   Migrations
   Text ingestion
   Azure AI Document Intelligence extraction
   Layout-aware chunk normalization
   Ollama AI client registration
-  In-memory cosine vector search
+  Persistent vector indexing and search
 
 ProjectRag.Application
   Application abstractions and cross-layer models
@@ -110,11 +111,12 @@ flowchart LR
 
 ## Persistence Model
 
-The persistence layer stores three main concepts:
+The persistence layer stores EF Core metadata plus a local vector collection:
 
 - `Document`: one original source document.
 - `DocumentChunk`: one searchable text chunk belonging to a document.
 - `IngestionJob`: status record for document ingestion work.
+- `document_chunks`: MEVD SQLiteVec vector collection keyed by chunk id.
 
 Current EF Core tables:
 
@@ -124,7 +126,7 @@ DocumentChunks
 IngestionJobs
 ```
 
-`DocumentChunk` has a required relationship to `Document` and cascades on document deletion. `IngestionJob` is independent for now.
+`DocumentChunk` has a required relationship to `Document` and cascades on document deletion. `IngestionJob` is independent for now. Vector records are stored through MEVD SQLiteVec in the same local SQLite database file but are managed outside EF Core migrations.
 
 ```mermaid
 erDiagram
@@ -187,10 +189,10 @@ Implemented behavior:
 - `POST /api/v1/ingestions` ingests `.md`, `.txt`, PDF, and common image files from a local path.
 - `GET /api/v1/ingestions/{id}` returns a persisted ingestion job.
 - `GET /api/v1/documents` reads documents from SQLite.
-- `POST /api/v1/search` embeds the query, scores stored chunks with cosine similarity, and returns ranked hits.
+- `POST /api/v1/search` embeds the query, searches the MEVD SQLiteVec collection, loads matching chunk metadata from EF Core, and returns ranked hits.
 - `POST /api/v1/ask` retrieves top chunks, builds a grounded prompt, calls the chat model, and returns an answer with citations.
 
-The current vector search is intentionally simple: embeddings are generated with Ollama and held only in memory during the request. Chunk embeddings are recomputed on each search. Persistent vector storage is deferred until a later phase.
+Chunk embeddings are generated once during ingestion and persisted in a local SQLiteVec collection. Search embeds only the query, uses the vector collection for nearest-neighbor retrieval, and joins results back to EF Core metadata for citations.
 
 Text and markdown files use paragraph-based fixed-size chunking. Scanned documents use Azure AI Document Intelligence `prebuilt-layout`, then a layout-aware rule-based chunking strategy:
 
@@ -209,6 +211,7 @@ sequenceDiagram
     participant Normalize as Layout Normalizer
     participant EF as RagDbContext
     participant DB as SQLite
+    participant Vec as SQLiteVec Collection
     participant Embed as Ollama Embeddings
     participant Chat as Ollama Chat
 
@@ -223,17 +226,21 @@ sequenceDiagram
     end
     Ingest->>EF: Add Documents and DocumentChunks
     EF->>DB: INSERT Documents, DocumentChunks, IngestionJobs
+    Ingest->>Embed: Embed chunk text
+    Ingest->>Vec: Upsert chunk vector records
     API-->>Client: 202 Accepted + completed IngestionJobResponse
 
     Client->>API: POST /api/v1/search
-    API->>EF: Load chunks
-    EF->>DB: SELECT DocumentChunks
-    API->>Embed: Embed query and chunk text
+    API->>Embed: Embed query
+    API->>Vec: Search persisted chunk vectors
+    API->>EF: Load matching chunk/document metadata
+    EF->>DB: SELECT matching DocumentChunks
     API-->>Client: Ranked SearchResponse
 
     Client->>API: POST /api/v1/ask
     API->>EF: Retrieve relevant chunks
-    API->>Embed: Embed query and chunk text
+    API->>Embed: Embed query
+    API->>Vec: Search persisted chunk vectors
     API->>Chat: Grounded prompt with top chunks
     Chat-->>API: Answer text
     API-->>Client: AskResponse with citations
@@ -250,15 +257,15 @@ Current integration tests use:
 - fake chat client
 - fake document extractor
 - direct tests for layout block normalization
+- file-backed SQLite tests for MEVD SQLiteVec vector search
 
 This verifies API + DI + EF Core + extraction/ingestion + retrieval/answer behavior without mutating the developer's local SQLite file and without requiring Ollama or Azure during tests.
 
 ## Current Limitations
 
 - Ingestion runs inline in the API request.
-- Ingestion runs inline in the API request.
 - Chunking is paragraph/layout based, not semantic, recursive, token based, or overlapping.
-- Chunk embeddings are recomputed on each search.
-- Vector search is in-memory cosine scoring, not a persistent vector database.
+- SQLiteVec is currently a preview connector, so package versions must stay aligned with its expected `Microsoft.Extensions.VectorData.Abstractions` version.
+- Changed-file reingestion has a skipped regression test pending a focused EF tracking design pass.
 - `/ask` is grounded by prompt instruction and citations, but claim-level citation validation is not implemented.
 - Hybrid retrieval, query rewriting, RRF fusion, reranking, and agentic behavior are later phases.

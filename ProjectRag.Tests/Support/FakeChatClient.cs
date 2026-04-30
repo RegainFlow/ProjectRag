@@ -2,7 +2,7 @@
 
 namespace ProjectRag.Tests.Support;
 
-public class FakeChatClient : IChatClient
+public sealed class FakeChatClient : IChatClient
 {
     public Task<ChatResponse> GetResponseAsync(
         IEnumerable<ChatMessage> messages,

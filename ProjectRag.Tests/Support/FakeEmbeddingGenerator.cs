@@ -2,7 +2,7 @@
 
 namespace ProjectRag.Tests.Support;
 
-public class FakeEmbeddingGenerator : IEmbeddingGenerator<string, Embedding<float>>
+public sealed class FakeEmbeddingGenerator : IEmbeddingGenerator<string, Embedding<float>>
 {
     public Task<GeneratedEmbeddings<Embedding<float>>> GenerateAsync(
         IEnumerable<string> values,
@@ -25,6 +25,7 @@ public class FakeEmbeddingGenerator : IEmbeddingGenerator<string, Embedding<floa
 
     private static ReadOnlyMemory<float> CreateVector(string value)
     {
+        var vector = new float[768];
         var normalized = value.ToLowerInvariant();
 
         if (normalized.Contains("late") ||
@@ -32,7 +33,8 @@ public class FakeEmbeddingGenerator : IEmbeddingGenerator<string, Embedding<floa
             normalized.Contains("invoice") ||
             normalized.Contains("fee"))
         {
-            return new[] { 1f, 0f, 0f };
+            vector[0] = 1f;
+            return vector;
         }
 
         if (normalized.Contains("security") ||
@@ -40,15 +42,21 @@ public class FakeEmbeddingGenerator : IEmbeddingGenerator<string, Embedding<floa
             normalized.Contains("multi-factor") ||
             normalized.Contains("mfa"))
         {
-            return new[] { 0f, 1f, 0f };
+            vector[1] = 1f;
+            return vector;
         }
 
         if (normalized.Contains("refund") ||
             normalized.Contains("credit"))
         {
-            return new[] { 0f, 0f, 1f };
+            vector[2] = 1f;
+            return vector;
         }
 
-        return new[] { 0.1f, 0.1f, 0.1f };
+        vector[0] = 0.1f;
+        vector[1] = 0.1f;
+        vector[2] = 0.1f;
+
+        return vector;
     }
 }

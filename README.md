@@ -2,14 +2,14 @@
 
 ProjectRag is a learning-first .NET RAG service. The project is being built in phases so each layer introduces one production retrieval-augmented generation capability at a time.
 
-Current status: Phase 2 scanned document ingestion is implemented. The API can ingest local text/markdown files plus scanned PDFs/images with Azure AI Document Intelligence, persist layout-aware chunks in SQLite, run vector search with Ollama embeddings, and generate grounded answers with Ollama chat.
+Current status: Phase 3 persistent local RAG is implemented. The API can ingest local text/markdown files plus scanned PDFs/images with Azure AI Document Intelligence, persist layout-aware chunks in SQLite, store chunk embeddings in a local MEVD SQLiteVec vector collection, run vector search with Ollama embeddings, and generate grounded answers with Ollama chat.
 
 ## Phase Roadmap
 
 1. Phase 0: .NET Minimal API foundation, EF Core, SQLite, OpenAPI, clean layering.
 2. Phase 1: Naive vector-only RAG over plain text or markdown documents.
 3. Phase 2: Scanned PDF/image ingestion with Azure AI Document Intelligence.
-4. Phase 3: Persistent local RAG and idempotent ingestion.
+4. Phase 3: Persistent local RAG with MEVD SQLiteVec and content-hash idempotency.
 5. Phase 4+: Hybrid retrieval, query rewriting, RRF fusion, reranking, grounded answers, evaluation, and agentic RAG.
 
 ## Solution Layout
@@ -19,7 +19,7 @@ ProjectRag.Api                 Minimal API endpoints and composition root
 ProjectRag.Application         Application services and orchestration, added as phases grow
 ProjectRag.Contracts           API request/response DTOs
 ProjectRag.Domain              Domain entities and enums
-ProjectRag.Infrastructure      EF Core, SQLite, migrations, persistence configuration
+ProjectRag.Infrastructure      EF Core, SQLite, MEVD SQLiteVec, migrations, provider integrations
 ProjectRag.Ingestion.Worker    Background worker shell for future ingestion processing
 ProjectRag.Tests               Unit and integration tests
 docs                           Architecture and agent guidance
@@ -44,14 +44,14 @@ POST /search
 POST /ask
 ```
 
-`/search` performs vector retrieval over ingested chunks. `/ask` retrieves relevant chunks, builds a grounded prompt, calls the configured chat model, and returns citations. Scanned document citations can include page and section metadata.
+`/search` embeds the query and searches the persisted local vector collection. `/ask` retrieves relevant chunks, builds a grounded prompt, calls the configured chat model, and returns citations. Scanned document citations can include page and section metadata.
 
 ## Prerequisites
 
 - .NET 10 SDK
 - EF Core CLI tool matching the EF Core package major/minor used by the project
 - Ollama running locally for Phase 1 embeddings and chat
-- Azure AI Document Intelligence resource for Phase 2 scanned PDF/image ingestion
+- Azure AI Document Intelligence resource for scanned PDF/image ingestion
 
 Recommended EF tool setup:
 
@@ -136,7 +136,7 @@ Scanned sample files should stay local-only. The committed markdown files under 
 
 ## Configuration
 
-Local development uses SQLite:
+Local development uses SQLite for EF Core metadata and the MEVD SQLiteVec vector collection:
 
 ```json
 "ConnectionStrings": {
@@ -175,6 +175,19 @@ dotnet user-secrets set "DocumentIntelligence:ApiKey" "YOUR-KEY" --project .\Pro
 
 The SQLite database file is local runtime state and should not be committed. Secrets should not be stored in committed `appsettings` files. Use user-secrets, environment variables, or deployment secret stores for credentials.
 
+## Persistent Vectors
+
+Phase 3 stores embeddings during ingestion instead of recomputing every chunk embedding during search.
+
+```text
+ingestion: document -> chunks -> chunk embeddings -> SQLiteVec collection
+search: query -> query embedding -> SQLiteVec search -> EF metadata lookup
+```
+
+Content hashing prevents unchanged source files from being re-extracted and re-chunked. If a file changes, the ingestion flow deletes old vector records for the document, replaces its chunks, and indexes the new chunks.
+
+The local vector provider is `Microsoft.SemanticKernel.Connectors.SqliteVec`, which currently uses `Microsoft.Extensions.VectorData.Abstractions` 10.1.0. Keep those package versions aligned while the SQLiteVec connector is preview.
+
 ## References
 
 - ASP.NET Core Minimal APIs: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/minimal-apis
@@ -183,6 +196,9 @@ The SQLite database file is local runtime state and should not be committed. Sec
 - EF Core migrations: https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/
 - ASP.NET Core integration tests: https://learn.microsoft.com/en-us/aspnet/core/test/integration-tests
 - Microsoft.Extensions.AI local AI quickstart with Ollama: https://learn.microsoft.com/en-us/dotnet/ai/quickstarts/quickstart-local-ai
+- .NET vector stores: https://learn.microsoft.com/en-us/dotnet/ai/vector-stores/how-to/use-vector-stores
+- .NET vector store ingestion: https://learn.microsoft.com/en-us/dotnet/ai/vector-stores/how-to/vector-store-data-ingestion
+- SQLiteVec vector store connector: https://learn.microsoft.com/en-us/semantic-kernel/concepts/vector-store-connectors/out-of-the-box-connectors/sqlite-connector
 - Ollama embeddings: https://docs.ollama.com/capabilities/embeddings
 - Azure AI Document Intelligence layout model: https://learn.microsoft.com/azure/ai-services/document-intelligence/prebuilt/layout
 - ASP.NET Core app secrets: https://learn.microsoft.com/en-us/aspnet/core/security/app-secrets

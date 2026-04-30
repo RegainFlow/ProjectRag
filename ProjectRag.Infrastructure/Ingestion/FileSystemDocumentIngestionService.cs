@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using ProjectRag.Application.Abstractions;
+using ProjectRag.Application.Models;
 using ProjectRag.Domain.Entities;
 using ProjectRag.Domain.Enums;
 using System.Security.Cryptography;
@@ -16,15 +17,18 @@ internal sealed class FileSystemDocumentIngestionService : ITextDocumentIngestio
     private readonly RagDbContext _db;
     private readonly ITextChunker _chunker;
     private readonly IDocumentExtractor _documentExtractor;
+    private readonly IVectorIndexService _vectorIndexService;
 
     public FileSystemDocumentIngestionService(
         RagDbContext db,
         ITextChunker chunker,
-        IDocumentExtractor documentExtractor)
+        IDocumentExtractor documentExtractor,
+        IVectorIndexService vectorIndexService)
     {
         _db = db;
         _chunker = chunker;
         _documentExtractor = documentExtractor;
+        _vectorIndexService = vectorIndexService;
     }
 
     public async Task IngestPathAsync(string sourcePath, CancellationToken cancellationToken)
@@ -45,38 +49,44 @@ internal sealed class FileSystemDocumentIngestionService : ITextDocumentIngestio
         var isTextDocument = TextExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase);
 
         var existing = await _db.Documents
-            .Include(x => x.Chunks)
             .SingleOrDefaultAsync(x => x.SourceUri == filePath, cancellationToken);
 
         // skip document - content hasn't changed
         if (existing is not null && existing.ContentHash == contentHash)
         {
+            var hasVectors = await _vectorIndexService.DocumentHasVectorsAsync(existing.Id, cancellationToken);
+
+            if (hasVectors)
+            {
+                return;
+            }
+
+            await _db.Entry(existing).Collection(x => x.Chunks).LoadAsync(cancellationToken);
+
+            await IndexDocumentChunksAsync(existing, cancellationToken);
             return;
         }
 
         // ingest new document or reingest changed document
+        Document document;
         if (existing is not null)
         {
-            _db.DocumentChunks.RemoveRange(existing.Chunks);
+            await _vectorIndexService.DeleteDocumentAsync(existing.Id, cancellationToken);
+
+            await _db.DocumentChunks
+                .Where(x => x.DocumentId == existing.Id)
+                .ExecuteDeleteAsync(cancellationToken);
 
             existing.Title = Path.GetFileNameWithoutExtension(filePath);
             existing.ContentHash = contentHash;
             existing.SourceType = Path.GetExtension(filePath).TrimStart('.').ToLowerInvariant();
             existing.UpdatedAt = DateTime.UtcNow;
 
-            if (isTextDocument)
-            {
-                var text = await File.ReadAllTextAsync(filePath, cancellationToken);
-                AddTextChunks(existing, text);
-            }
-            else
-            {
-                await AddExtractedChunksAsync(existing, filePath, cancellationToken);
-            }
+            document = existing;
         }
         else
         {
-            var document = new Document
+            document = new Document
             {
                 Id = Guid.NewGuid(),
                 SourceUri = filePath,
@@ -87,21 +97,34 @@ internal sealed class FileSystemDocumentIngestionService : ITextDocumentIngestio
                 UpdatedAt = DateTime.UtcNow,
             };
 
-
-            if (isTextDocument)
-            {
-                var text = await File.ReadAllTextAsync(filePath, cancellationToken);
-                AddTextChunks(document, text);
-            }
-            else
-            {
-                await AddExtractedChunksAsync(document, filePath, cancellationToken);
-            }
-
             _db.Documents.Add(document);
         }
 
+        if (isTextDocument)
+        {
+            var text = await File.ReadAllTextAsync(filePath, cancellationToken);
+            AddTextChunks(document, text);
+        }
+        else
+        {
+            await AddExtractedChunksAsync(document, filePath, cancellationToken);
+        }
+
         await _db.SaveChangesAsync(cancellationToken);
+        await IndexDocumentChunksAsync(document, cancellationToken);
+    }
+
+    private async Task IndexDocumentChunksAsync(Document document, CancellationToken cancellationToken)
+    {
+        var chunks = document.Chunks
+            .Select(chunk => new VectorIndexChunk(
+                document.Id,
+                chunk.Id,
+                document.SourceUri,
+                chunk.Text))
+            .ToList();
+
+        await _vectorIndexService.UpsertChunksAsync(chunks, cancellationToken);
     }
 
     private async Task AddExtractedChunksAsync(Document document, string filePath, CancellationToken cancellationToken)

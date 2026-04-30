@@ -5,7 +5,7 @@ using System.Net.Http.Json;
 
 namespace ProjectRag.Tests.Api;
 
-public class AskEndpointsTests : IClassFixture<RagApiFactory>
+public sealed class AskEndpointsTests : IClassFixture<RagApiFactory>
 {
     private readonly HttpClient _client;
 

@@ -13,7 +13,7 @@ ProjectRag is built in phases:
 1. Foundation API and persistence.
 2. Naive RAG.
 3. Scanned PDF ingestion.
-4. Persistent local retrieval.
+4. Persistent local retrieval with MEVD SQLiteVec.
 5. Hybrid retrieval and ranking improvements.
 6. Grounded answer generation.
 7. Evaluation and agentic RAG.
@@ -25,7 +25,7 @@ Keep changes aligned with the active phase. Do not introduce later-phase abstrac
 - `ProjectRag.Api` owns HTTP endpoints and the application composition root.
 - `ProjectRag.Contracts` owns API DTOs.
 - `ProjectRag.Domain` owns entities and enums.
-- `ProjectRag.Infrastructure` owns EF Core, SQLite, migrations, persistence configuration, provider integrations, document extraction, chunking implementations, and vector search implementations.
+- `ProjectRag.Infrastructure` owns EF Core, SQLite, migrations, persistence configuration, provider integrations, document extraction, chunking implementations, MEVD SQLiteVec vector indexing, and vector search implementations.
 - `ProjectRag.Tests` owns test coverage.
 
 Dependency direction should stay:
@@ -57,6 +57,8 @@ Avoid references from `Domain` to EF Core, ASP.NET Core, Infrastructure, or API.
 - Keep local SQLite files and secrets out of source control.
 - Keep normal tests independent from Ollama by using fake `IEmbeddingGenerator` and `IChatClient` implementations.
 - Keep normal tests independent from Azure by using fake `IDocumentExtractor` implementations.
+- Keep MEVD provider records and SQLiteVec-specific types inside Infrastructure. Do not leak provider storage records into Domain, Contracts, or API responses.
+- SQLiteVec is currently a preview connector. Keep its package version aligned with the `Microsoft.Extensions.VectorData.Abstractions` version it expects before upgrading vector packages.
 - Do not commit real Azure keys, local scanned datasets, real customer documents, or local SQLite database files.
 
 ## Testing
@@ -68,6 +70,8 @@ For API persistence tests, use:
 - DI override for `RagDbContext`
 
 Do not test against the developer's local SQLite database file.
+
+For MEVD SQLiteVec integration tests, use file-backed temporary SQLite databases. In-memory SQLite is good for EF Core API tests, but SQLiteVec opens provider-managed connections, so a shared physical test file is the safer boundary.
 
 When adding or changing behavior, update tests in the same change. This applies to new endpoints, services, contracts, persistence mappings, ingestion behavior, retrieval logic, and answer-generation logic. Prefer focused tests that prove the new behavior through the narrowest useful boundary. For API endpoints, add or update integration tests that exercise the HTTP route and verify the response contract.
 

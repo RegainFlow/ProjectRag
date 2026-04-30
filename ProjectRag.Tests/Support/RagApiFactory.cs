@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using ProjectRag.Application.Abstractions;
 using ProjectRag.Infrastructure;
+using ProjectRag.Infrastructure.VectorSearch;
 
 namespace ProjectRag.Tests.Support;
 
@@ -21,12 +22,16 @@ public sealed class RagApiFactory : WebApplicationFactory<Program>, IDisposable
 
         builder.ConfigureServices(services =>
         {
+            services.RemoveAll<IVectorIndexService>();
+            services.RemoveAll<IVectorSearchService>();
             services.RemoveAll<IEmbeddingGenerator<string, Embedding<float>>>();
             services.RemoveAll<IChatClient>();
             services.RemoveAll<IDocumentExtractor>();
             services.RemoveAll<DocumentIntelligenceClient>();
             services.RemoveAll<DbContextOptions<RagDbContext>>();
 
+            services.AddSingleton<IVectorIndexService, FakeVectorIndexService>();
+            services.AddScoped<IVectorSearchService, InMemoryVectorSearchService>();
             services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>, FakeEmbeddingGenerator>();
             services.AddSingleton<IChatClient, FakeChatClient>();
             services.AddSingleton<IDocumentExtractor, FakeDocumentExtractor>();

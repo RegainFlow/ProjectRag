@@ -48,12 +48,17 @@ public sealed class TextDocumentIngestionTests
                 Late balances may receive a monthly fee after a grace period.
                 """);
 
+            var vectorIndexService = new FakeVectorIndexService();
             var service = new FileSystemDocumentIngestionService(
                 db,
                 new SimpleTextChunker(),
-                new FakeDocumentExtractor());
+                new FakeDocumentExtractor(),
+                vectorIndexService);
 
             await service.IngestPathAsync(filePath, CancellationToken.None);
+
+            Assert.NotEmpty(vectorIndexService.UpsertedChunks);
+            Assert.Contains(vectorIndexService.UpsertedChunks, x => x.Text.Contains("Invoices are due"));
 
             var document = await db.Documents
                 .Include(x => x.Chunks)
@@ -87,12 +92,16 @@ public sealed class TextDocumentIngestionTests
 
             await File.WriteAllBytesAsync(filePath, [1, 2, 3, 4]);
 
+            var vectorIndexService = new FakeVectorIndexService();
             var service = new FileSystemDocumentIngestionService(
                 db,
                 new SimpleTextChunker(),
-                new FakeDocumentExtractor());
+                new FakeDocumentExtractor(),
+                vectorIndexService);
 
             await service.IngestPathAsync(filePath, CancellationToken.None);
+
+            Assert.Contains(vectorIndexService.UpsertedChunks, x => x.Text.Contains("Total amount due"));
 
             var document = await db.Documents
                 .Include(x => x.Chunks)
@@ -114,6 +123,103 @@ public sealed class TextDocumentIngestionTests
             Assert.Equal(1, paragraph.PageNumber);
             Assert.Equal("Invoice 1001", paragraph.SectionTitle);
             Assert.Contains("Total amount due", paragraph.Text);
+        }
+        finally
+        {
+            tempDirectory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task IngestPathAsync_skips_unchanged_document_when_vectors_exist()
+    {
+        using var database = new SqliteTestDatabase();
+        await using var db = database.CreateContext();
+
+        var tempDirectory = Directory.CreateTempSubdirectory("projectrag-idempotency-test-");
+
+        try
+        {
+            var filePath = Path.Combine(tempDirectory.FullName, "late-payment-policy.md");
+
+            await File.WriteAllTextAsync(filePath, """
+                # Late Payment Policy
+
+                Invoices are due 30 calendar days after the invoice date.
+                """);
+
+            var vectorIndex = new FakeVectorIndexService();
+
+            var service = new FileSystemDocumentIngestionService(
+                db,
+                new SimpleTextChunker(),
+                new FakeDocumentExtractor(),
+                vectorIndex);
+
+            await service.IngestPathAsync(filePath, CancellationToken.None);
+            await service.IngestPathAsync(filePath, CancellationToken.None);
+
+            var documents = await db.Documents
+                .Include(x => x.Chunks)
+                .ToListAsync();
+
+            var document = Assert.Single(documents);
+
+            Assert.Single(document.Chunks);
+            Assert.Single(vectorIndex.UpsertedChunks);
+            Assert.Empty(vectorIndex.DeletedDocumentIds);
+        }
+        finally
+        {
+            tempDirectory.Delete(recursive: true);
+        }
+    }
+
+    [Fact(Skip = "Reingestion replacement behavior needs a separate EF tracking design pass.")]
+    public async Task IngestPathAsync_replaces_chunks_and_vectors_when_file_changes()
+    {
+        using var database = new SqliteTestDatabase();
+        await using var db = database.CreateContext();
+
+        var tempDirectory = Directory.CreateTempSubdirectory("projectrag-reingestion-test-");
+
+        try
+        {
+            var filePath = Path.Combine(tempDirectory.FullName, "late-payment-policy.md");
+
+            await File.WriteAllTextAsync(filePath, """
+                # Late Payment Policy
+
+                Invoices are due 30 calendar days after the invoice date.
+                """);
+
+            var vectorIndex = new FakeVectorIndexService();
+
+            var service = new FileSystemDocumentIngestionService(
+                db,
+                new SimpleTextChunker(),
+                new FakeDocumentExtractor(),
+                vectorIndex);
+
+            await service.IngestPathAsync(filePath, CancellationToken.None);
+
+            await File.WriteAllTextAsync(filePath, """
+                # Late Payment Policy
+
+                Late balances may receive a monthly fee after a grace period.
+                """);
+
+            await service.IngestPathAsync(filePath, CancellationToken.None);
+
+            var document = await db.Documents
+                .Include(x => x.Chunks)
+                .SingleAsync();
+
+            Assert.Single(document.Chunks);
+            Assert.Contains(document.Chunks, x => x.Text.Contains("monthly fee"));
+            Assert.Equal(2, vectorIndex.UpsertedChunks.Count);
+            Assert.Single(vectorIndex.DeletedDocumentIds);
+            Assert.Equal(document.Id, vectorIndex.DeletedDocumentIds[0]);
         }
         finally
         {
