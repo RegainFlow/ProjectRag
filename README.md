@@ -2,15 +2,16 @@
 
 ProjectRag is a learning-first .NET RAG service. The project is being built in phases so each layer introduces one production retrieval-augmented generation capability at a time.
 
-Current status: Phase 3 persistent local RAG is implemented. The API can ingest local text/markdown files plus scanned PDFs/images with Azure AI Document Intelligence, persist layout-aware chunks in SQLite, store chunk embeddings in a local MEVD SQLiteVec vector collection, run vector search with Ollama embeddings, and generate grounded answers with Ollama chat.
+Current status: Phase 4 hybrid retrieval is implemented. The API can ingest local text/markdown files plus scanned PDFs/images with Azure AI Document Intelligence, persist layout-aware chunks in SQLite, index chunk text and embeddings into Elasticsearch, run keyword + vector retrieval, merge candidates, and generate grounded answers with Ollama chat.
 
 ## Phase Roadmap
 
 1. Phase 0: .NET Minimal API foundation, EF Core, SQLite, OpenAPI, clean layering.
 2. Phase 1: Naive vector-only RAG over plain text or markdown documents.
 3. Phase 2: Scanned PDF/image ingestion with Azure AI Document Intelligence.
-4. Phase 3: Persistent local RAG with MEVD SQLiteVec and content-hash idempotency.
-5. Phase 4+: Hybrid retrieval, query rewriting, RRF fusion, reranking, grounded answers, evaluation, and agentic RAG.
+4. Phase 3: Persistent local RAG with content-hash idempotency.
+5. Phase 4: Elasticsearch hybrid keyword + vector retrieval with metadata filters.
+6. Phase 5+: Query rewriting, RRF fusion, reranking, stricter grounded answers, evaluation, and agentic RAG.
 
 ## Solution Layout
 
@@ -19,7 +20,7 @@ ProjectRag.Api                 Minimal API endpoints and composition root
 ProjectRag.Application         Application services and orchestration, added as phases grow
 ProjectRag.Contracts           API request/response DTOs
 ProjectRag.Domain              Domain entities and enums
-ProjectRag.Infrastructure      EF Core, SQLite, MEVD SQLiteVec, migrations, provider integrations
+ProjectRag.Infrastructure      EF Core, SQLite, Elasticsearch, migrations, provider integrations
 ProjectRag.Ingestion.Worker    Background worker shell for future ingestion processing
 ProjectRag.Tests               Unit and integration tests
 docs                           Architecture and agent guidance
@@ -44,74 +45,97 @@ POST /search
 POST /ask
 ```
 
-`/search` embeds the query and searches the persisted local vector collection. `/ask` retrieves relevant chunks, builds a grounded prompt, calls the configured chat model, and returns citations. Scanned document citations can include page and section metadata.
+`/search` runs hybrid retrieval: Elasticsearch keyword/BM25 search plus Elasticsearch vector search over persisted chunk embeddings, followed by a simple normalized-score merge. `/ask` uses the same hybrid retrieval path, builds a grounded prompt, calls the configured chat model, and returns citations. Scanned document citations can include page and section metadata.
 
 ## Prerequisites
 
 - .NET 10 SDK
 - EF Core CLI tool matching the EF Core package major/minor used by the project
 - Ollama running locally for Phase 1 embeddings and chat
+- Elasticsearch running locally for Phase 4 retrieval
 - Azure AI Document Intelligence resource for scanned PDF/image ingestion
 
 Recommended EF tool setup:
 
-```powershell
+```bash
 dotnet tool update --global dotnet-ef --version 10.0.7
 ```
 
 Recommended Ollama setup:
 
-```powershell
+```bash
 ollama pull nomic-embed-text
 ollama pull llama3.2
 ollama list
 ```
 
+Recommended Elasticsearch setup:
+
+```bash
+docker network create elastic
+docker run --name es01 \
+  --net elastic \
+  -e "discovery.type=single-node" \
+  -e "xpack.security.enabled=false" \
+  -e "xpack.security.http.ssl.enabled=false" \
+  -e "xpack.security.transport.ssl.enabled=false" \
+  -p 9200:9200 \
+  -m 1GB \
+  docker.elastic.co/elasticsearch/elasticsearch:9.3.4
+```
+
+Kibana and cleanup commands are documented in `docs/ELASTIC_KIBANA.md`.
+
 ## Local Development
 
 Restore and build:
 
-```powershell
+```bash
 dotnet restore
 dotnet build ProjectRag.slnx
 ```
 
 Run tests:
 
-```powershell
-dotnet test ProjectRag.Tests\ProjectRag.Tests.csproj
+```bash
+dotnet test ProjectRag.Tests/ProjectRag.Tests.csproj
 ```
 
 Apply local SQLite migrations:
 
-```powershell
-dotnet ef database update `
-  --project .\ProjectRag.Infrastructure\ProjectRag.Infrastructure.csproj `
-  --startup-project .\ProjectRag.Api\ProjectRag.Api.csproj
+```bash
+dotnet ef database update \
+  --project ./ProjectRag.Infrastructure/ProjectRag.Infrastructure.csproj \
+  --startup-project ./ProjectRag.Api/ProjectRag.Api.csproj
 ```
 
 Run the API:
 
-```powershell
+```bash
 dotnet run --project ProjectRag.Api
 ```
 
 OpenAPI is mapped in development with `MapOpenApi()`.
 
-Ingest the sample corpus with `ProjectRag.Api/ProjectRag.Api.http` or an HTTP client:
+Ingest the sample corpus with `ProjectRag.Api/ProjectRag.Api.http` or an HTTP client. Some `.http` runners have short request timeouts, so curl is more reliable while ingestion still runs inline:
 
-```json
-{
-  "sourcePath": "samples/docs"
-}
+```bash
+curl -X POST "http://localhost:5260/api/v1/ingestions" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  --max-time 300 \
+  -d '{"sourcePath":"samples/docs"}'
 ```
 
 Then search:
 
 ```json
 {
-  "query": "late payment fees",
-  "topK": 5
+  "query": "charges for paying bills after the due date",
+  "topK": 5,
+  "filters": {
+    "sourceType": "md"
+  }
 }
 ```
 
@@ -120,7 +144,10 @@ Then ask:
 ```json
 {
   "question": "What are the late payment fees?",
-  "topK": 5
+  "topK": 5,
+  "filters": {
+    "sourceType": "md"
+  }
 }
 ```
 
@@ -136,7 +163,7 @@ Scanned sample files should stay local-only. The committed markdown files under 
 
 ## Configuration
 
-Local development uses SQLite for EF Core metadata and the MEVD SQLiteVec vector collection:
+Local development uses SQLite for EF Core metadata:
 
 ```json
 "ConnectionStrings": {
@@ -155,6 +182,16 @@ Local AI uses Ollama:
 }
 ```
 
+Elasticsearch stores the active search index:
+
+```json
+"Elasticsearch": {
+  "Endpoint": "http://localhost:9200",
+  "IndexName": "projectrag-chunks",
+  "TimeoutSeconds": 120
+}
+```
+
 Azure AI Document Intelligence uses local secrets for real credentials:
 
 ```json
@@ -167,26 +204,26 @@ Azure AI Document Intelligence uses local secrets for real credentials:
 
 Set local secrets from the API project:
 
-```powershell
-dotnet user-secrets init --project .\ProjectRag.Api\ProjectRag.Api.csproj
-dotnet user-secrets set "DocumentIntelligence:Endpoint" "https://YOUR-RESOURCE.cognitiveservices.azure.com/" --project .\ProjectRag.Api\ProjectRag.Api.csproj
-dotnet user-secrets set "DocumentIntelligence:ApiKey" "YOUR-KEY" --project .\ProjectRag.Api\ProjectRag.Api.csproj
+```bash
+dotnet user-secrets init --project ./ProjectRag.Api/ProjectRag.Api.csproj
+dotnet user-secrets set "DocumentIntelligence:Endpoint" "https://YOUR-RESOURCE.cognitiveservices.azure.com/" --project ./ProjectRag.Api/ProjectRag.Api.csproj
+dotnet user-secrets set "DocumentIntelligence:ApiKey" "YOUR-KEY" --project ./ProjectRag.Api/ProjectRag.Api.csproj
 ```
 
 The SQLite database file is local runtime state and should not be committed. Secrets should not be stored in committed `appsettings` files. Use user-secrets, environment variables, or deployment secret stores for credentials.
 
-## Persistent Vectors
+## Hybrid Retrieval
 
-Phase 3 stores embeddings during ingestion instead of recomputing every chunk embedding during search.
+Phase 4 stores searchable chunk records in Elasticsearch during ingestion. Each record includes chunk text, metadata, and an embedding generated with Ollama.
 
 ```text
-ingestion: document -> chunks -> chunk embeddings -> SQLiteVec collection
-search: query -> query embedding -> SQLiteVec search -> EF metadata lookup
+ingestion: document -> chunks -> chunk embeddings -> Elasticsearch index
+search: query -> keyword search + vector search -> merge candidates -> ranked hits
 ```
 
-Content hashing prevents unchanged source files from being re-extracted and re-chunked. If a file changes, the ingestion flow deletes old vector records for the document, replaces its chunks, and indexes the new chunks.
+Content hashing prevents unchanged source files from being re-extracted and re-chunked. If a file changes, the ingestion flow deletes old search records for the document, replaces its chunks, and indexes the new chunks.
 
-The local vector provider is `Microsoft.SemanticKernel.Connectors.SqliteVec`, which currently uses `Microsoft.Extensions.VectorData.Abstractions` 10.1.0. Keep those package versions aligned while the SQLiteVec connector is preview.
+The Phase 4 merge is intentionally simple: vector and keyword scores are normalized independently, deduplicated by chunk id, and boosted when both retrieval paths match. Phase 6 will replace this with Reciprocal Rank Fusion.
 
 ## References
 
@@ -198,7 +235,8 @@ The local vector provider is `Microsoft.SemanticKernel.Connectors.SqliteVec`, wh
 - Microsoft.Extensions.AI local AI quickstart with Ollama: https://learn.microsoft.com/en-us/dotnet/ai/quickstarts/quickstart-local-ai
 - .NET vector stores: https://learn.microsoft.com/en-us/dotnet/ai/vector-stores/how-to/use-vector-stores
 - .NET vector store ingestion: https://learn.microsoft.com/en-us/dotnet/ai/vector-stores/how-to/vector-store-data-ingestion
-- SQLiteVec vector store connector: https://learn.microsoft.com/en-us/semantic-kernel/concepts/vector-store-connectors/out-of-the-box-connectors/sqlite-connector
+- Elastic .NET client: https://www.elastic.co/docs/reference/elasticsearch/clients/dotnet/installation
+- Elasticsearch RRF retriever: https://www.elastic.co/docs/reference/elasticsearch/rest-apis/retrievers/rrf-retriever
 - Ollama embeddings: https://docs.ollama.com/capabilities/embeddings
 - Azure AI Document Intelligence layout model: https://learn.microsoft.com/azure/ai-services/document-intelligence/prebuilt/layout
 - ASP.NET Core app secrets: https://learn.microsoft.com/en-us/aspnet/core/security/app-secrets

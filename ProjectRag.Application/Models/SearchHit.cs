@@ -10,4 +10,7 @@ public sealed record SearchHit(
     double Score,
     int? PageNumber,
     ChunkKind Kind,
-    string? SectionTitle);
+    string? SectionTitle,
+    double? VectorScore = null,
+    double? KeywordScore = null,
+    string MatchedBy = "unknown");

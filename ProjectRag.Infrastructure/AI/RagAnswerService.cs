@@ -6,19 +6,19 @@ namespace ProjectRag.Infrastructure.AI;
 
 internal sealed class RagAnswerService : IRagAnswerService
 {
-    private readonly IVectorSearchService _vectorSearch;
+    private readonly IRetrievalSearchService _retrievalSearchService;
     private readonly IChatClient _chatClient;
-
     public RagAnswerService(
-        IVectorSearchService vectorSearch,
+        IRetrievalSearchService retrievalSearchService,
         IChatClient chatClient)
     {
-        _vectorSearch = vectorSearch;
+        _retrievalSearchService = retrievalSearchService;
         _chatClient = chatClient;
     }
     public async Task<RagAnswer> AnswerAsync(
         string question,
         int topK,
+        SearchFilters? filters,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(question))
@@ -28,7 +28,7 @@ internal sealed class RagAnswerService : IRagAnswerService
                 []);
         }
 
-        var hits = await _vectorSearch.SearchAsync(question, topK, cancellationToken);
+        var hits = await _retrievalSearchService.SearchAsync(question, topK, filters, cancellationToken);
 
         if (hits.Count == 0)
         {

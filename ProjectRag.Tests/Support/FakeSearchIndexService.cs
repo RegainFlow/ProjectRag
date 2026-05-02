@@ -3,11 +3,11 @@ using ProjectRag.Application.Models;
 
 namespace ProjectRag.Tests.Support;
 
-public sealed class FakeVectorIndexService : IVectorIndexService
+public sealed class FakeSearchIndexService : ISearchIndexService
 {
     private readonly HashSet<Guid> _indexedDocumentIds = [];
 
-    public List<VectorIndexChunk> UpsertedChunks { get; } = [];
+    public List<SearchIndexChunk> UpsertedChunks { get; } = [];
     public List<Guid> DeletedDocumentIds { get; } = [];
 
     public Task DeleteDocumentAsync(Guid documentId, CancellationToken cancellationToken)
@@ -18,12 +18,12 @@ public sealed class FakeVectorIndexService : IVectorIndexService
         return Task.CompletedTask;
     }
 
-    public Task<bool> DocumentHasVectorsAsync(Guid documentId, CancellationToken cancellationToken)
+    public Task<bool> DocumentHasIndexedChunksAsync(Guid documentId, CancellationToken cancellationToken)
     {
         return Task.FromResult(_indexedDocumentIds.Contains(documentId));
     }
 
-    public Task UpsertChunksAsync(IReadOnlyCollection<VectorIndexChunk> chunks, CancellationToken cancellationToken)
+    public Task UpsertChunksAsync(IReadOnlyCollection<SearchIndexChunk> chunks, CancellationToken cancellationToken)
     {
         UpsertedChunks.AddRange(chunks);
 

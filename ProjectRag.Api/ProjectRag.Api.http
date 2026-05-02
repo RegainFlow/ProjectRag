@@ -14,13 +14,14 @@ Accept: application/json
 {
   "sourcePath": "samples/docs"
 }
+Time
 
 ### Create ingestion job for scanned documents
 POST {{baseUrl}}/ingestions
 Content-Type: application/json
 Accept: application/json
 {
-  "sourcePath": "samples/scanned/azure"
+  "sourcePath": "samples/docs"
 }
 
 ### Get ingestion job
@@ -36,8 +37,8 @@ POST {{baseUrl}}/search
 Content-Type: application/json
 Accept: application/json
 {
-  "query": "late payment fees",
-  "topK": 5
+  "query": "get back policy",
+  "topK": 10
 }
 
 ### Search scanned documents
@@ -46,7 +47,10 @@ Content-Type: application/json
 Accept: application/json
 {
   "query": "Document Intelligence studio",
-  "topK": 5
+  "topK": 5,
+  "filters": {
+    "sourceType": "md"
+  }
 }
 
 ### Ask text documents

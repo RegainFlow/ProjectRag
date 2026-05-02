@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using ProjectRag.Application.Abstractions;
 using ProjectRag.Infrastructure;
-using ProjectRag.Infrastructure.VectorSearch;
+using ProjectRag.Infrastructure.Search;
 
 namespace ProjectRag.Tests.Support;
 
@@ -22,7 +22,9 @@ public sealed class RagApiFactory : WebApplicationFactory<Program>, IDisposable
 
         builder.ConfigureServices(services =>
         {
-            services.RemoveAll<IVectorIndexService>();
+            services.RemoveAll<IRetrievalSearchService>();
+            services.RemoveAll<IKeywordSearchService>();
+            services.RemoveAll<ISearchIndexService>();
             services.RemoveAll<IVectorSearchService>();
             services.RemoveAll<IEmbeddingGenerator<string, Embedding<float>>>();
             services.RemoveAll<IChatClient>();
@@ -30,8 +32,10 @@ public sealed class RagApiFactory : WebApplicationFactory<Program>, IDisposable
             services.RemoveAll<DocumentIntelligenceClient>();
             services.RemoveAll<DbContextOptions<RagDbContext>>();
 
-            services.AddSingleton<IVectorIndexService, FakeVectorIndexService>();
-            services.AddScoped<IVectorSearchService, InMemoryVectorSearchService>();
+            services.AddSingleton<ISearchIndexService, FakeSearchIndexService>();
+            services.AddScoped<IVectorSearchService, FakeVectorSearchService>();
+            services.AddScoped<IKeywordSearchService, InMemoryKeywordSearchService>();
+            services.AddScoped<IRetrievalSearchService, HybridRetrievalSearchService>();
             services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>, FakeEmbeddingGenerator>();
             services.AddSingleton<IChatClient, FakeChatClient>();
             services.AddSingleton<IDocumentExtractor, FakeDocumentExtractor>();

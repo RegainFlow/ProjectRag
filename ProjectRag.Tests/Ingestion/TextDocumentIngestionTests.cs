@@ -48,17 +48,17 @@ public sealed class TextDocumentIngestionTests
                 Late balances may receive a monthly fee after a grace period.
                 """);
 
-            var vectorIndexService = new FakeVectorIndexService();
+            var searchIndexService = new FakeSearchIndexService();
             var service = new FileSystemDocumentIngestionService(
                 db,
                 new SimpleTextChunker(),
                 new FakeDocumentExtractor(),
-                vectorIndexService);
+                searchIndexService);
 
             await service.IngestPathAsync(filePath, CancellationToken.None);
 
-            Assert.NotEmpty(vectorIndexService.UpsertedChunks);
-            Assert.Contains(vectorIndexService.UpsertedChunks, x => x.Text.Contains("Invoices are due"));
+            Assert.NotEmpty(searchIndexService.UpsertedChunks);
+            Assert.Contains(searchIndexService.UpsertedChunks, x => x.Text.Contains("Invoices are due"));
 
             var document = await db.Documents
                 .Include(x => x.Chunks)
@@ -92,16 +92,16 @@ public sealed class TextDocumentIngestionTests
 
             await File.WriteAllBytesAsync(filePath, [1, 2, 3, 4]);
 
-            var vectorIndexService = new FakeVectorIndexService();
+            var searchIndexService = new FakeSearchIndexService();
             var service = new FileSystemDocumentIngestionService(
                 db,
                 new SimpleTextChunker(),
                 new FakeDocumentExtractor(),
-                vectorIndexService);
+                searchIndexService);
 
             await service.IngestPathAsync(filePath, CancellationToken.None);
 
-            Assert.Contains(vectorIndexService.UpsertedChunks, x => x.Text.Contains("Total amount due"));
+            Assert.Contains(searchIndexService.UpsertedChunks, x => x.Text.Contains("Total amount due"));
 
             var document = await db.Documents
                 .Include(x => x.Chunks)
@@ -148,13 +148,13 @@ public sealed class TextDocumentIngestionTests
                 Invoices are due 30 calendar days after the invoice date.
                 """);
 
-            var vectorIndex = new FakeVectorIndexService();
+            var searchIndexService = new FakeSearchIndexService();
 
             var service = new FileSystemDocumentIngestionService(
                 db,
                 new SimpleTextChunker(),
                 new FakeDocumentExtractor(),
-                vectorIndex);
+                searchIndexService);
 
             await service.IngestPathAsync(filePath, CancellationToken.None);
             await service.IngestPathAsync(filePath, CancellationToken.None);
@@ -166,8 +166,8 @@ public sealed class TextDocumentIngestionTests
             var document = Assert.Single(documents);
 
             Assert.Single(document.Chunks);
-            Assert.Single(vectorIndex.UpsertedChunks);
-            Assert.Empty(vectorIndex.DeletedDocumentIds);
+            Assert.Single(searchIndexService.UpsertedChunks);
+            Assert.Empty(searchIndexService.DeletedDocumentIds);
         }
         finally
         {
@@ -193,13 +193,13 @@ public sealed class TextDocumentIngestionTests
                 Invoices are due 30 calendar days after the invoice date.
                 """);
 
-            var vectorIndex = new FakeVectorIndexService();
+            var searchIndexService = new FakeSearchIndexService();
 
             var service = new FileSystemDocumentIngestionService(
                 db,
                 new SimpleTextChunker(),
                 new FakeDocumentExtractor(),
-                vectorIndex);
+                searchIndexService);
 
             await service.IngestPathAsync(filePath, CancellationToken.None);
 
@@ -217,9 +217,9 @@ public sealed class TextDocumentIngestionTests
 
             Assert.Single(document.Chunks);
             Assert.Contains(document.Chunks, x => x.Text.Contains("monthly fee"));
-            Assert.Equal(2, vectorIndex.UpsertedChunks.Count);
-            Assert.Single(vectorIndex.DeletedDocumentIds);
-            Assert.Equal(document.Id, vectorIndex.DeletedDocumentIds[0]);
+            Assert.Equal(2, searchIndexService.UpsertedChunks.Count);
+            Assert.Single(searchIndexService.DeletedDocumentIds);
+            Assert.Equal(document.Id, searchIndexService.DeletedDocumentIds[0]);
         }
         finally
         {

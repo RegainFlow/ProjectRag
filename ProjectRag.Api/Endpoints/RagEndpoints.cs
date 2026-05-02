@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using ProjectRag.Application.Abstractions;
+using ProjectRag.Application.Models;
 using ProjectRag.Contracts;
 using ProjectRag.Domain.Entities;
 using ProjectRag.Domain.Enums;
@@ -109,10 +110,20 @@ internal static class RagEndpoints
 
         group.MapPost("/search", async (
             SearchRequest request,
-            IVectorSearchService vectorSearch,
+            IRetrievalSearchService retrievalSearchService,
             CancellationToken cancellationToken) =>
         {
-            var hits = await vectorSearch.SearchAsync(request.Query, request.TopK, cancellationToken);
+            var filters = request.Filters is null
+                ? null
+                : new SearchFilters(
+                      request.Filters.SourceType,
+                      request.Filters.SourceUriContains,
+                      request.Filters.CreatedFrom,
+                      request.Filters.CreatedTo,
+                      request.Filters.PageFrom,
+                      request.Filters.PageTo);
+
+            var hits = await retrievalSearchService.SearchAsync(request.Query, request.TopK, filters, cancellationToken);
 
             var response = new SearchResponse(
                 request.Query,
@@ -124,7 +135,10 @@ internal static class RagEndpoints
                     x.Score,
                     x.PageNumber,
                     x.Kind.ToString(),
-                    x.SectionTitle)).ToList());
+                    x.SectionTitle,
+                    x.VectorScore,
+                    x.KeywordScore,
+                    x.MatchedBy)).ToList());
 
             return Results.Ok(response);
         });
@@ -135,7 +149,17 @@ internal static class RagEndpoints
             IRagAnswerService ragAnswerService,
             CancellationToken cancellationToken) =>
         {
-            var answer = await ragAnswerService.AnswerAsync(request.Question, request.TopK, cancellationToken);
+            var filters = request.Filters is null
+                ? null
+                : new SearchFilters(
+                      request.Filters.SourceType,
+                      request.Filters.SourceUriContains,
+                      request.Filters.CreatedFrom,
+                      request.Filters.CreatedTo,
+                      request.Filters.PageFrom,
+                      request.Filters.PageTo);
+
+            var answer = await ragAnswerService.AnswerAsync(request.Question, request.TopK, filters, cancellationToken);
 
             var response = new AskResponse(
                 answer.Answer,

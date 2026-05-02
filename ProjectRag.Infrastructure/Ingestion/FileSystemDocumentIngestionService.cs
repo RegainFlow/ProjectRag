@@ -17,18 +17,18 @@ internal sealed class FileSystemDocumentIngestionService : ITextDocumentIngestio
     private readonly RagDbContext _db;
     private readonly ITextChunker _chunker;
     private readonly IDocumentExtractor _documentExtractor;
-    private readonly IVectorIndexService _vectorIndexService;
+    private readonly ISearchIndexService _searchIndexService;
 
     public FileSystemDocumentIngestionService(
         RagDbContext db,
         ITextChunker chunker,
         IDocumentExtractor documentExtractor,
-        IVectorIndexService vectorIndexService)
+        ISearchIndexService searchIndexService)
     {
         _db = db;
         _chunker = chunker;
         _documentExtractor = documentExtractor;
-        _vectorIndexService = vectorIndexService;
+        _searchIndexService = searchIndexService;
     }
 
     public async Task IngestPathAsync(string sourcePath, CancellationToken cancellationToken)
@@ -54,16 +54,16 @@ internal sealed class FileSystemDocumentIngestionService : ITextDocumentIngestio
         // skip document - content hasn't changed
         if (existing is not null && existing.ContentHash == contentHash)
         {
-            var hasVectors = await _vectorIndexService.DocumentHasVectorsAsync(existing.Id, cancellationToken);
+            var hasIndexedChunks = await _searchIndexService.DocumentHasIndexedChunksAsync(existing.Id, cancellationToken);
 
-            if (hasVectors)
+            if (hasIndexedChunks)
             {
                 return;
             }
 
             await _db.Entry(existing).Collection(x => x.Chunks).LoadAsync(cancellationToken);
 
-            await IndexDocumentChunksAsync(existing, cancellationToken);
+            await IndexDocumentChunksAsync(existing, cancellationToken); // reindex existing document that is missing search index records
             return;
         }
 
@@ -71,7 +71,7 @@ internal sealed class FileSystemDocumentIngestionService : ITextDocumentIngestio
         Document document;
         if (existing is not null)
         {
-            await _vectorIndexService.DeleteDocumentAsync(existing.Id, cancellationToken);
+            await _searchIndexService.DeleteDocumentAsync(existing.Id, cancellationToken);
 
             await _db.DocumentChunks
                 .Where(x => x.DocumentId == existing.Id)
@@ -117,14 +117,20 @@ internal sealed class FileSystemDocumentIngestionService : ITextDocumentIngestio
     private async Task IndexDocumentChunksAsync(Document document, CancellationToken cancellationToken)
     {
         var chunks = document.Chunks
-            .Select(chunk => new VectorIndexChunk(
+            .Select(chunk => new SearchIndexChunk(
                 document.Id,
                 chunk.Id,
                 document.SourceUri,
-                chunk.Text))
+                document.SourceType,
+                document.Title,
+                chunk.Text,
+                chunk.PageNumber,
+                chunk.SectionTitle,
+                chunk.Kind,
+                chunk.CreatedAt))
             .ToList();
 
-        await _vectorIndexService.UpsertChunksAsync(chunks, cancellationToken);
+        await _searchIndexService.UpsertChunksAsync(chunks, cancellationToken);
     }
 
     private async Task AddExtractedChunksAsync(Document document, string filePath, CancellationToken cancellationToken)

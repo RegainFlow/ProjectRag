@@ -1,4 +1,5 @@
 ﻿using Azure.AI.DocumentIntelligence;
+using Elastic.Clients.Elasticsearch;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
@@ -10,7 +11,7 @@ using ProjectRag.Infrastructure.AI;
 using ProjectRag.Infrastructure.DocumentIntelligence;
 using ProjectRag.Infrastructure.Ingestion;
 using ProjectRag.Infrastructure.Options;
-using ProjectRag.Infrastructure.VectorSearch;
+using ProjectRag.Infrastructure.Search;
 
 namespace ProjectRag.Infrastructure;
 
@@ -23,7 +24,7 @@ public static class DependencyInjection
         services.AddPersistence(configuration);
         services.AddOllama(configuration);
         services.AddAzureDocumentIntelligence(configuration);
-        services.AddVectorSearch(configuration);
+        services.AddElasticsearch(configuration);
         services.AddIngestion(configuration);
 
         services.AddScoped<IRagAnswerService, RagAnswerService>();
@@ -39,21 +40,6 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException("Connection string 'ProjectRagDb' was not found.");
 
         services.AddDbContext<RagDbContext>(options => options.UseSqlite(connectionString));
-
-        return services;
-    }
-
-    private static IServiceCollection AddVectorSearch(
-        this IServiceCollection services,
-        IConfiguration configuration)
-    {
-        var connectionString = configuration.GetConnectionString("ProjectRagDb")
-            ?? throw new InvalidOperationException("Connection string 'ProjectRagDb' was not found.");
-
-        services.AddSqliteCollection<string, DocumentChunkVectorRecord>("document_chunks", connectionString);
-
-        services.AddScoped<IVectorIndexService, MevdVectorIndexService>();
-        services.AddScoped<IVectorSearchService, MevdVectorSearchService>();
 
         return services;
     }
@@ -131,6 +117,40 @@ public static class DependencyInjection
         services.AddSingleton<ITextChunker, SimpleTextChunker>();
         services.AddSingleton<IDocumentExtractor, AzureDocumentIntelligenceExtractor>();
         services.AddScoped<ITextDocumentIngestionService, FileSystemDocumentIngestionService>();
+
+        return services;
+    }
+
+    private static IServiceCollection AddElasticsearch(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.Configure<ElasticsearchOptions>(configuration.GetSection(ElasticsearchOptions.SectionName));
+
+        services.AddSingleton<ElasticsearchClient>(serviceProvider =>
+        {
+            var options = serviceProvider.GetRequiredService<IOptions<ElasticsearchOptions>>().Value;
+            if (string.IsNullOrWhiteSpace(options.Endpoint))
+            {
+                throw new InvalidOperationException("Elasticsearch endpoint is not configured.");
+            }
+
+            if (string.IsNullOrWhiteSpace(options.IndexName))
+            {
+                throw new InvalidOperationException("Elasticsearch index name is not configured.");
+            }
+
+            var settings = new ElasticsearchClientSettings(new Uri(options.Endpoint))
+                .DefaultIndex(options.IndexName)
+                .RequestTimeout(TimeSpan.FromSeconds(options.TimeoutSeconds));
+
+            return new ElasticsearchClient(settings);
+        });
+
+        services.AddScoped<ISearchIndexService, ElasticSearchIndexService>();
+        services.AddScoped<IKeywordSearchService, ElasticKeywordSearchService>();
+        services.AddScoped<IVectorSearchService, ElasticVectorSearchService>();
+        services.AddScoped<IRetrievalSearchService, HybridRetrievalSearchService>();
 
         return services;
     }
