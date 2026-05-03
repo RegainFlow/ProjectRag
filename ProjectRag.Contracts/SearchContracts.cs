@@ -15,6 +15,7 @@ public sealed record SearchRequest(
 
 public sealed record SearchResponse(
     string Query,
+    QueryRewriteResponse QueryRewrite,
     IReadOnlyList<SearchHitResponse> Results);
 
 public sealed record SearchHitResponse(

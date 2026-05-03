@@ -1,6 +1,6 @@
 # Architecture
 
-ProjectRag is a layered .NET RAG service. The architecture is intentionally conservative: establish clear boundaries, persistence, API contracts, testability, scanned document extraction, persistent search indexing, and hybrid retrieval before introducing query rewriting, RRF, reranking, or agentic orchestration.
+ProjectRag is a layered .NET RAG service. The architecture is intentionally conservative: establish clear boundaries, persistence, API contracts, testability, scanned document extraction, persistent search indexing, hybrid retrieval, and query rewriting before introducing RRF, reranking, or agentic orchestration.
 
 ## Layers
 
@@ -28,6 +28,7 @@ ProjectRag.Infrastructure
   Azure AI Document Intelligence extraction
   Layout-aware chunk normalization
   Ollama AI client registration
+  LLM query rewriting
   Hybrid keyword/vector retrieval
 
 ProjectRag.Application
@@ -189,10 +190,10 @@ Implemented behavior:
 - `POST /api/v1/ingestions` ingests `.md`, `.txt`, PDF, and common image files from a local path.
 - `GET /api/v1/ingestions/{id}` returns a persisted ingestion job.
 - `GET /api/v1/documents` reads documents from SQLite.
-- `POST /api/v1/search` runs Elasticsearch keyword search and Elasticsearch vector search, merges candidates, and returns ranked hits with retrieval diagnostics.
-- `POST /api/v1/ask` retrieves top chunks, builds a grounded prompt, calls the chat model, and returns an answer with citations.
+- `POST /api/v1/search` rewrites the query, runs Elasticsearch keyword search and Elasticsearch vector search, merges candidates, and returns ranked hits with retrieval diagnostics.
+- `POST /api/v1/ask` rewrites the question, retrieves top chunks, builds a grounded prompt, calls the chat model, and returns an answer with citations.
 
-Chunk embeddings are generated once during ingestion and stored in Elasticsearch with chunk text and metadata. Search embeds only the query, runs keyword and vector retrieval independently, deduplicates candidates by chunk id, normalizes scores, and applies a small boost when both retrieval paths match. This is a Phase 4 learning merge; RRF is a later phase.
+Chunk embeddings are generated once during ingestion and stored in Elasticsearch with chunk text and metadata. Search rewrites the original user query into a semantic query for vector retrieval and a keyword query for full-text retrieval. It embeds only the semantic query, runs keyword and vector retrieval independently, deduplicates candidates by chunk id, normalizes scores, and applies a small boost when both retrieval paths match. This is a learning merge; RRF is a later phase.
 
 Text and markdown files use paragraph-based fixed-size chunking. Scanned documents use Azure AI Document Intelligence `prebuilt-layout`, then a layout-aware rule-based chunking strategy:
 
@@ -212,6 +213,7 @@ sequenceDiagram
     participant EF as RagDbContext
     participant DB as SQLite
     participant ES as Elasticsearch
+    participant Rewrite as Query Rewrite
     participant Embed as Ollama Embeddings
     participant Chat as Ollama Chat
 
@@ -231,14 +233,18 @@ sequenceDiagram
     API-->>Client: 202 Accepted + completed IngestionJobResponse
 
     Client->>API: POST /api/v1/search
-    API->>Embed: Embed query
+    API->>Rewrite: Rewrite original query
+    Rewrite-->>API: Semantic query + keyword query
+    API->>Embed: Embed semantic query
     API->>ES: Vector search
     API->>ES: Keyword search
     API->>API: Merge candidates
     API-->>Client: Ranked SearchResponse
 
     Client->>API: POST /api/v1/ask
-    API->>Embed: Embed query
+    API->>Rewrite: Rewrite question
+    Rewrite-->>API: Semantic query + keyword query
+    API->>Embed: Embed semantic query
     API->>ES: Hybrid retrieval
     API->>Chat: Grounded prompt with top chunks
     Chat-->>API: Answer text
@@ -256,6 +262,7 @@ Current integration tests use:
 - fake chat client
 - fake document extractor
 - fake keyword/vector retrieval services for API tests
+- fake query rewrite service for API tests
 - direct tests for layout block normalization
 
 This verifies API + DI + EF Core + extraction/ingestion + retrieval/answer behavior without mutating the developer's local SQLite file and without requiring Ollama, Azure, or Elasticsearch during normal tests. Elasticsearch behavior is currently covered by manual local smoke testing.
@@ -266,7 +273,8 @@ This verifies API + DI + EF Core + extraction/ingestion + retrieval/answer behav
 - Long-running `/ingestions` and `/ask` calls can exceed short `.http` client timeouts; use curl with a longer timeout while ingestion remains inline.
 - Chunking is paragraph/layout based, not semantic, recursive, token based, or overlapping.
 - Hybrid merge uses normalized scores plus a small hybrid bonus, not RRF.
+- Query rewriting uses a local chat model and can add noticeable latency.
 - Elasticsearch integration is manually smoke-tested, not part of the default automated test suite.
 - Changed-file reingestion has a skipped regression test pending a focused EF tracking design pass.
 - `/ask` is grounded by prompt instruction and citations, but claim-level citation validation is not implemented.
-- Query rewriting, RRF fusion, reranking, and agentic behavior are later phases.
+- RRF fusion, reranking, and agentic behavior are later phases.

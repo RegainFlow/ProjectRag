@@ -26,6 +26,7 @@ public static class DependencyInjection
         services.AddAzureDocumentIntelligence(configuration);
         services.AddElasticsearch(configuration);
         services.AddIngestion(configuration);
+        services.AddScoped<IQueryRewriteService, LlmQueryRewriteService>();
 
         services.AddScoped<IRagAnswerService, RagAnswerService>();
 

@@ -14,7 +14,7 @@ public sealed class HybridRetrievalSearchServiceTests
             new StubVectorSearchService([]),
             new StubKeywordSearchService([]));
 
-        var results = await service.SearchAsync("", topK: 5, filters: null, CancellationToken.None);
+        var results = await service.SearchAsync(Query(""), topK: 5, filters: null, CancellationToken.None);
 
         Assert.Empty(results);
     }
@@ -28,7 +28,7 @@ public sealed class HybridRetrievalSearchServiceTests
             new StubKeywordSearchService([]));
 
         var results = await service.SearchAsync(
-            "late payment",
+            Query("late payment"),
             topK: 5,
             filters: null,
             CancellationToken.None);
@@ -50,7 +50,7 @@ public sealed class HybridRetrievalSearchServiceTests
             new StubKeywordSearchService([keywordHit]));
 
         var results = await service.SearchAsync(
-            "fee",
+            Query("fee"),
             topK: 5,
             filters: null,
             CancellationToken.None);
@@ -74,7 +74,7 @@ public sealed class HybridRetrievalSearchServiceTests
             new StubKeywordSearchService([keywordHit]));
 
         var results = await service.SearchAsync(
-            "late payment",
+            Query("late payment"),
             topK: 5,
             filters: null,
             CancellationToken.None);
@@ -97,7 +97,7 @@ public sealed class HybridRetrievalSearchServiceTests
             new StubKeywordSearchService([keywordOnly, keywordHybrid]));
 
         var results = await service.SearchAsync(
-            "late payment",
+            Query("late payment"),
             topK: 5,
             filters: null,
             CancellationToken.None);
@@ -127,7 +127,7 @@ public sealed class HybridRetrievalSearchServiceTests
             ]));
 
         var results = await service.SearchAsync(
-            "late payment",
+            Query("late payment"),
             topK: 2,
             filters: null,
             CancellationToken.None);
@@ -144,14 +144,21 @@ public sealed class HybridRetrievalSearchServiceTests
 
         var filters = new SearchFilters(SourceType: "md");
 
+        var query = new RetrievalQuery(
+            OriginalQuery: "late payment",
+            SemanticQuery: "semantic late payment",
+            KeywordQuery: "\"late payment\" OR overdue");
+
         await service.SearchAsync(
-            "late payment",
+            query,
             topK: 5,
             filters,
             CancellationToken.None);
 
         Assert.Same(filters, vectorSearch.ReceivedFilters);
         Assert.Same(filters, keywordSearch.ReceivedFilters);
+        Assert.Equal("semantic late payment", vectorSearch.ReceivedQuery);
+        Assert.Equal("\"late payment\" OR overdue", keywordSearch.ReceivedQuery);
     }
 
     private static SearchHit Hit(string text, double score, Guid? chunkId = null)
@@ -171,6 +178,7 @@ public sealed class HybridRetrievalSearchServiceTests
     {
         private readonly IReadOnlyList<SearchHit> _hits;
         public SearchFilters? ReceivedFilters { get; private set; }
+        public string? ReceivedQuery { get; private set; }
 
         public StubVectorSearchService(IReadOnlyList<SearchHit> hits)
         {
@@ -183,6 +191,7 @@ public sealed class HybridRetrievalSearchServiceTests
             SearchFilters? filters,
             CancellationToken cancellationToken)
         {
+            ReceivedQuery = query;
             ReceivedFilters = filters;
             return Task.FromResult(_hits.Take(topK).ToList() as IReadOnlyList<SearchHit>);
         }
@@ -192,6 +201,7 @@ public sealed class HybridRetrievalSearchServiceTests
     {
         private readonly IReadOnlyList<SearchHit> _hits;
         public SearchFilters? ReceivedFilters { get; private set; }
+        public string? ReceivedQuery { get; private set; }
 
         public StubKeywordSearchService(IReadOnlyList<SearchHit> hits)
         {
@@ -205,7 +215,16 @@ public sealed class HybridRetrievalSearchServiceTests
             CancellationToken cancellationToken)
         {
             ReceivedFilters = filters;
+            ReceivedQuery = query;
             return Task.FromResult(_hits.Take(topK).ToList() as IReadOnlyList<SearchHit>);
         }
+    }
+
+    private static RetrievalQuery Query(string query)
+    {
+        return new RetrievalQuery(
+            OriginalQuery: query,
+            SemanticQuery: query,
+            KeywordQuery: query);
     }
 }

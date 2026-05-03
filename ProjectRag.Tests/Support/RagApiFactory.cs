@@ -22,23 +22,25 @@ public sealed class RagApiFactory : WebApplicationFactory<Program>, IDisposable
 
         builder.ConfigureServices(services =>
         {
-            services.RemoveAll<IRetrievalSearchService>();
-            services.RemoveAll<IKeywordSearchService>();
-            services.RemoveAll<ISearchIndexService>();
-            services.RemoveAll<IVectorSearchService>();
+            services.RemoveAll<DbContextOptions<RagDbContext>>();
+            services.RemoveAll<DocumentIntelligenceClient>();
+            services.RemoveAll<IDocumentExtractor>();
             services.RemoveAll<IEmbeddingGenerator<string, Embedding<float>>>();
             services.RemoveAll<IChatClient>();
-            services.RemoveAll<IDocumentExtractor>();
-            services.RemoveAll<DocumentIntelligenceClient>();
-            services.RemoveAll<DbContextOptions<RagDbContext>>();
+            services.RemoveAll<ISearchIndexService>();
+            services.RemoveAll<IVectorSearchService>();
+            services.RemoveAll<IKeywordSearchService>();
+            services.RemoveAll<IRetrievalSearchService>();
+            services.RemoveAll<IQueryRewriteService>();
 
+            services.AddSingleton<IDocumentExtractor, FakeDocumentExtractor>();
+            services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>, FakeEmbeddingGenerator>();
+            services.AddSingleton<IChatClient, FakeChatClient>();
             services.AddSingleton<ISearchIndexService, FakeSearchIndexService>();
             services.AddScoped<IVectorSearchService, FakeVectorSearchService>();
             services.AddScoped<IKeywordSearchService, InMemoryKeywordSearchService>();
             services.AddScoped<IRetrievalSearchService, HybridRetrievalSearchService>();
-            services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>, FakeEmbeddingGenerator>();
-            services.AddSingleton<IChatClient, FakeChatClient>();
-            services.AddSingleton<IDocumentExtractor, FakeDocumentExtractor>();
+            services.AddScoped<IQueryRewriteService, FakeQueryRewriteService>();
 
             services.AddDbContext<RagDbContext>(options =>
                 options.UseSqlite(_connection));

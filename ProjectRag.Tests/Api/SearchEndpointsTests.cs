@@ -45,7 +45,13 @@ public sealed class SearchEndpointsTests : IClassFixture<RagApiFactory>
 
             Assert.NotNull(body);
             Assert.Equal("late payment fees", body.Query);
+            Assert.NotNull(body.QueryRewrite);
+            Assert.Equal("late payment fees", body.QueryRewrite.OriginalQuery);
+            Assert.Equal("late payment fees", body.QueryRewrite.SemanticQuery);
+            Assert.Equal("late payment fees", body.QueryRewrite.KeywordQuery);
+            Assert.Equal("test-fake", body.QueryRewrite.Status);
             Assert.NotEmpty(body.Results);
+
 
             var hit = Assert.Single(
                 body.Results,

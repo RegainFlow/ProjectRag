@@ -11,17 +11,18 @@ Accept: application/json
 POST {{baseUrl}}/ingestions
 Content-Type: application/json
 Accept: application/json
+
 {
   "sourcePath": "samples/docs"
 }
-Time
 
 ### Create ingestion job for scanned documents
 POST {{baseUrl}}/ingestions
 Content-Type: application/json
 Accept: application/json
+
 {
-  "sourcePath": "samples/docs"
+  "sourcePath": "samples/scanned/azure"
 }
 
 ### Get ingestion job
@@ -36,27 +37,30 @@ Accept: application/json
 POST {{baseUrl}}/search
 Content-Type: application/json
 Accept: application/json
-{
-  "query": "get back policy",
-  "topK": 10
-}
 
-### Search scanned documents
-POST {{baseUrl}}/search
-Content-Type: application/json
-Accept: application/json
 {
-  "query": "Document Intelligence studio",
+  "query": "what does it say about late payment fees?",
   "topK": 5,
   "filters": {
     "sourceType": "md"
   }
 }
 
+### Search scanned documents
+POST {{baseUrl}}/search
+Content-Type: application/json
+Accept: application/json
+
+{
+  "query": "Document Intelligence studio",
+  "topK": 3
+}
+
 ### Ask text documents
 POST {{baseUrl}}/ask
 Content-Type: application/json
 Accept: application/json
+
 {
   "question": "What are the late payment fees?",
   "topK": 5
@@ -66,6 +70,7 @@ Accept: application/json
 POST {{baseUrl}}/ask
 Content-Type: application/json
 Accept: application/json
+
 {
   "question": "What can Document Intelligence extract?",
   "topK": 5

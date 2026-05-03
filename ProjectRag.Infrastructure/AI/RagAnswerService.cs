@@ -8,12 +8,15 @@ internal sealed class RagAnswerService : IRagAnswerService
 {
     private readonly IRetrievalSearchService _retrievalSearchService;
     private readonly IChatClient _chatClient;
+    private readonly IQueryRewriteService _queryRewriteService;
     public RagAnswerService(
         IRetrievalSearchService retrievalSearchService,
-        IChatClient chatClient)
+        IChatClient chatClient,
+        IQueryRewriteService queryRewriteService)
     {
         _retrievalSearchService = retrievalSearchService;
         _chatClient = chatClient;
+        _queryRewriteService = queryRewriteService;
     }
     public async Task<RagAnswer> AnswerAsync(
         string question,
@@ -21,19 +24,32 @@ internal sealed class RagAnswerService : IRagAnswerService
         SearchFilters? filters,
         CancellationToken cancellationToken)
     {
+        var queryRewrite = await _queryRewriteService.RewriteAsync(question, cancellationToken);
+
         if (string.IsNullOrWhiteSpace(question))
         {
             return new RagAnswer(
                 "Please provide a question.",
+                queryRewrite,
                 []);
         }
 
-        var hits = await _retrievalSearchService.SearchAsync(question, topK, filters, cancellationToken);
+        var retrievalQuery = new RetrievalQuery(
+            OriginalQuery: queryRewrite.OriginalQuery,
+            SemanticQuery: queryRewrite.SemanticQuery,
+            KeywordQuery: queryRewrite.KeywordQuery);
+
+        var hits = await _retrievalSearchService.SearchAsync(
+            retrievalQuery,
+            topK,
+            filters,
+            cancellationToken);
 
         if (hits.Count == 0)
         {
             return new RagAnswer(
-                "I do not have enough information in the available dooucments to answer that question.",
+                "I do not have enough information in the available documents to answer that question.",
+                queryRewrite,
                 []);
         }
 
@@ -67,7 +83,7 @@ internal sealed class RagAnswerService : IRagAnswerService
                 ))
             .ToList();
 
-        return new RagAnswer(response.Text, citations);
+        return new RagAnswer(response.Text, queryRewrite, citations);
     }
 
     private static string BuildContext(IReadOnlyList<SearchHit> hits)
@@ -76,7 +92,7 @@ internal sealed class RagAnswerService : IRagAnswerService
             "\n\n",
             hits.Select((hit, index) => $"""
                 [Source {index + 1}]
-                DocumenId: {hit.DocumentId}
+                DocumentId: {hit.DocumentId}
                 ChunkId: {hit.ChunkId}
                 Source: {hit.Source}
                 Score: {hit.Score}
@@ -85,7 +101,6 @@ internal sealed class RagAnswerService : IRagAnswerService
                 Section: {hit.SectionTitle}
                 Text:
                 {hit.Text}
-
                 """));
     }
 }

@@ -2,7 +2,7 @@
 
 ProjectRag is a learning-first .NET RAG service. The project is being built in phases so each layer introduces one production retrieval-augmented generation capability at a time.
 
-Current status: Phase 4 hybrid retrieval is implemented. The API can ingest local text/markdown files plus scanned PDFs/images with Azure AI Document Intelligence, persist layout-aware chunks in SQLite, index chunk text and embeddings into Elasticsearch, run keyword + vector retrieval, merge candidates, and generate grounded answers with Ollama chat.
+Current status: Phase 5 query rewriting is implemented. The API can ingest local text/markdown files plus scanned PDFs/images with Azure AI Document Intelligence, persist layout-aware chunks in SQLite, index chunk text and embeddings into Elasticsearch, rewrite user questions into semantic and keyword search queries, run hybrid retrieval, and generate grounded answers with citations.
 
 ## Phase Roadmap
 
@@ -11,7 +11,8 @@ Current status: Phase 4 hybrid retrieval is implemented. The API can ingest loca
 3. Phase 2: Scanned PDF/image ingestion with Azure AI Document Intelligence.
 4. Phase 3: Persistent local RAG with content-hash idempotency.
 5. Phase 4: Elasticsearch hybrid keyword + vector retrieval with metadata filters.
-6. Phase 5+: Query rewriting, RRF fusion, reranking, stricter grounded answers, evaluation, and agentic RAG.
+6. Phase 5: LLM-powered query rewriting before retrieval.
+7. Phase 6+: RRF fusion, reranking, stricter grounded answers, evaluation, and agentic RAG.
 
 ## Solution Layout
 
@@ -45,7 +46,7 @@ POST /search
 POST /ask
 ```
 
-`/search` runs hybrid retrieval: Elasticsearch keyword/BM25 search plus Elasticsearch vector search over persisted chunk embeddings, followed by a simple normalized-score merge. `/ask` uses the same hybrid retrieval path, builds a grounded prompt, calls the configured chat model, and returns citations. Scanned document citations can include page and section metadata.
+`/search` rewrites the original query into semantic and keyword search queries, runs Elasticsearch vector search plus keyword/BM25 search, and merges the candidates. `/ask` uses the same rewritten hybrid retrieval path, builds a grounded prompt, calls the configured chat model, and returns citations. Responses include query rewrite diagnostics. Scanned document citations can include page and section metadata.
 
 ## Prerequisites
 
@@ -127,11 +128,11 @@ curl -X POST "http://localhost:5260/api/v1/ingestions" \
   -d '{"sourcePath":"samples/docs"}'
 ```
 
-Then search:
+Then search. The response includes `queryRewrite` diagnostics:
 
 ```json
 {
-  "query": "charges for paying bills after the due date",
+  "query": "what does it say about late payment fees?",
   "topK": 5,
   "filters": {
     "sourceType": "md"
@@ -139,7 +140,7 @@ Then search:
 }
 ```
 
-Then ask:
+Then ask. The response includes the same rewrite diagnostics plus citations:
 
 ```json
 {
@@ -212,13 +213,15 @@ dotnet user-secrets set "DocumentIntelligence:ApiKey" "YOUR-KEY" --project ./Pro
 
 The SQLite database file is local runtime state and should not be committed. Secrets should not be stored in committed `appsettings` files. Use user-secrets, environment variables, or deployment secret stores for credentials.
 
-## Hybrid Retrieval
+## Query Rewriting And Hybrid Retrieval
 
-Phase 4 stores searchable chunk records in Elasticsearch during ingestion. Each record includes chunk text, metadata, and an embedding generated with Ollama.
+Phase 5 adds an LLM-powered rewrite step before retrieval. The rewrite service returns the original query, a semantic query for vector retrieval, and a keyword query for full-text retrieval. If rewriting fails, retrieval falls back to the original query.
+
+Searchable chunk records are stored in Elasticsearch during ingestion. Each record includes chunk text, metadata, and an embedding generated with Ollama.
 
 ```text
 ingestion: document -> chunks -> chunk embeddings -> Elasticsearch index
-search: query -> keyword search + vector search -> merge candidates -> ranked hits
+search: original query -> query rewrite -> keyword search + vector search -> merge candidates -> ranked hits
 ```
 
 Content hashing prevents unchanged source files from being re-extracted and re-chunked. If a file changes, the ingestion flow deletes old search records for the document, replaces its chunks, and indexes the new chunks.

@@ -111,6 +111,7 @@ internal static class RagEndpoints
         group.MapPost("/search", async (
             SearchRequest request,
             IRetrievalSearchService retrievalSearchService,
+            IQueryRewriteService queryRewriteService,
             CancellationToken cancellationToken) =>
         {
             var filters = request.Filters is null
@@ -123,10 +124,22 @@ internal static class RagEndpoints
                       request.Filters.PageFrom,
                       request.Filters.PageTo);
 
-            var hits = await retrievalSearchService.SearchAsync(request.Query, request.TopK, filters, cancellationToken);
+            var queryRewrite = await queryRewriteService.RewriteAsync(request.Query, cancellationToken);
+
+            var retrievalQuery = new RetrievalQuery(
+                queryRewrite.OriginalQuery,
+                queryRewrite.SemanticQuery,
+                queryRewrite.KeywordQuery);
+
+            var hits = await retrievalSearchService.SearchAsync(retrievalQuery, request.TopK, filters, cancellationToken);
 
             var response = new SearchResponse(
                 request.Query,
+                new QueryRewriteResponse(
+                    queryRewrite.OriginalQuery,
+                    queryRewrite.SemanticQuery,
+                    queryRewrite.KeywordQuery,
+                    queryRewrite.Status),
                 hits.Select(x => new SearchHitResponse(
                     x.ChunkId.ToString(),
                     x.DocumentId.ToString(),
@@ -147,6 +160,7 @@ internal static class RagEndpoints
         group.MapPost("/ask", async (
             AskRequest request,
             IRagAnswerService ragAnswerService,
+            IQueryRewriteService queryRewriteService,
             CancellationToken cancellationToken) =>
         {
             var filters = request.Filters is null
@@ -163,6 +177,11 @@ internal static class RagEndpoints
 
             var response = new AskResponse(
                 answer.Answer,
+                new QueryRewriteResponse(
+                    answer.QueryRewrite.OriginalQuery,
+                    answer.QueryRewrite.SemanticQuery,
+                    answer.QueryRewrite.KeywordQuery,
+                    answer.QueryRewrite.Status),
                 answer.Citations.Select(x => new CitationResponse(
                     x.DocumentId.ToString(),
                     x.ChunkId.ToString(),

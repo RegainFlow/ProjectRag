@@ -38,7 +38,7 @@ internal sealed class ElasticKeywordSearchService : IKeywordSearchService
                 .Query(q => q
                     .Bool(b => b
                         .Must(must => must
-                            .MultiMatch(mm => mm
+                            .SimpleQueryString(sqs => sqs
                                 .Query(query)
                                 .Fields(new[]
                                 {

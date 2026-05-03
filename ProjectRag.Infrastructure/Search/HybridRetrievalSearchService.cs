@@ -18,9 +18,11 @@ internal sealed class HybridRetrievalSearchService : IRetrievalSearchService
         _keywordSearchService = keywordSearchService;
     }
 
-    public async Task<IReadOnlyList<SearchHit>> SearchAsync(string query, int topK, SearchFilters? filters, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<SearchHit>> SearchAsync(RetrievalQuery query, int topK, SearchFilters? filters, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(query))
+        if (string.IsNullOrWhiteSpace(query.OriginalQuery)
+            && string.IsNullOrWhiteSpace(query.SemanticQuery)
+            && string.IsNullOrWhiteSpace(query.KeywordQuery))
         {
             return [];
         }
@@ -28,8 +30,8 @@ internal sealed class HybridRetrievalSearchService : IRetrievalSearchService
         topK = Math.Clamp(topK, 1, 20);
         var candidateCount = Math.Max(topK * 3, 10);
 
-        var vectorResultsTask = _vectorSearchService.SearchAsync(query, candidateCount, filters, cancellationToken);
-        var keywordResultsTask = _keywordSearchService.SearchAsync(query, candidateCount, filters, cancellationToken);
+        var vectorResultsTask = _vectorSearchService.SearchAsync(query.SemanticQuery, candidateCount, filters, cancellationToken);
+        var keywordResultsTask = _keywordSearchService.SearchAsync(query.KeywordQuery, candidateCount, filters, cancellationToken);
 
         await Task.WhenAll(vectorResultsTask, keywordResultsTask);
 

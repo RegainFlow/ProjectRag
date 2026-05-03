@@ -45,6 +45,11 @@ public sealed class AskEndpointsTests : IClassFixture<RagApiFactory>
 
             Assert.NotNull(body);
             Assert.Contains("monthly fee", body.Answer);
+            Assert.NotNull(body.QueryRewrite);
+            Assert.Equal("What are the late payment fees?", body.QueryRewrite.OriginalQuery);
+            Assert.Equal("What are the late payment fees?", body.QueryRewrite.SemanticQuery);
+            Assert.Equal("What are the late payment fees?", body.QueryRewrite.KeywordQuery);
+            Assert.Equal("test-fake", body.QueryRewrite.Status);
             Assert.NotEmpty(body.Citations);
 
             var firstCitation = body.Citations[0];

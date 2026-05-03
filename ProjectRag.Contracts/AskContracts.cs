@@ -7,6 +7,7 @@ public sealed record AskRequest(
 
 public sealed record AskResponse(
     string Answer,
+    QueryRewriteResponse QueryRewrite,
     IReadOnlyList<CitationResponse> Citations);
 
 public sealed record CitationResponse(
