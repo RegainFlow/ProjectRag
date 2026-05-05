@@ -146,6 +146,7 @@ internal static class RagEndpoints
                     x.Source,
                     x.Text.Length <= 300 ? x.Text : x.Text[..300], // limit text preview size to 300
                     x.RrfScore,
+                    x.RerankScore,
                     x.PageNumber,
                     x.Kind.ToString(),
                     x.SectionTitle,
@@ -187,6 +188,7 @@ internal static class RagEndpoints
                     x.Source,
                     x.PageNumber,
                     x.RrfScore,
+                    x.RerankScore,
                     x.VectorScore,
                     x.KeywordScore,
                     x.MatchedBy,

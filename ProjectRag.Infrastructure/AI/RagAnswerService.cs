@@ -77,6 +77,7 @@ internal sealed class RagAnswerService : IRagAnswerService
                 hit.ChunkId,
                 hit.Source,
                 hit.RrfScore,
+                hit.RerankScore,
                 hit.VectorScore,
                 hit.KeywordScore,
                 hit.MatchedBy,

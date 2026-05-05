@@ -61,6 +61,8 @@ public sealed class SearchEndpointsTests : IClassFixture<RagApiFactory>
             Assert.False(string.IsNullOrWhiteSpace(hit.ChunkId));
             Assert.Contains("monthly fee", hit.TextPreview);
             Assert.True(hit.RrfScore > 0);
+            Assert.NotNull(hit.RerankScore);
+            Assert.True(hit.RerankScore > 0);
             Assert.Null(hit.VectorScore);
             Assert.NotNull(hit.KeywordScore);
             Assert.Equal("keyword", hit.MatchedBy);
@@ -102,7 +104,8 @@ public sealed class SearchEndpointsTests : IClassFixture<RagApiFactory>
             Assert.Contains(body.Results, results =>
             results.PageNumber == 1
             && results.Kind == "Paragraph"
-            && results.SectionTitle == "Invoice 1001");
+            && results.SectionTitle == "Invoice 1001"
+            && results.RerankScore is > 0);
         }
         finally
         {
@@ -151,6 +154,7 @@ public sealed class SearchEndpointsTests : IClassFixture<RagApiFactory>
 
             Assert.NotNull(body);
             Assert.NotEmpty(body.Results);
+            Assert.All(body.Results, result => Assert.NotNull(result.RerankScore));
             Assert.All(body.Results, result => Assert.EndsWith(".md", result.SourceUri));
             Assert.DoesNotContain(body.Results, result => result.SourceUri == textPath);
         }

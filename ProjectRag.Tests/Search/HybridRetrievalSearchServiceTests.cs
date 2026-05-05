@@ -1,6 +1,8 @@
+using Microsoft.Extensions.Options;
 using ProjectRag.Application.Abstractions;
 using ProjectRag.Application.Models;
 using ProjectRag.Domain.Enums;
+using ProjectRag.Infrastructure.Options;
 using ProjectRag.Infrastructure.Search;
 
 namespace ProjectRag.Tests.Search;
@@ -11,9 +13,11 @@ public sealed class HybridRetrievalSearchServiceTests
     public async Task SearchAsync_returns_empty_for_blank_query()
     {
         var service = new HybridRetrievalSearchService(
+            Options.Create(new RetrievalOptions()),
             new StubVectorSearchService([]),
             new StubKeywordSearchService([]),
-            new RrfRankFusionService());
+            new RrfRankFusionService(),
+            new StubRerankerService());
 
         var results = await service.SearchAsync(Query(""), topK: 5, filters: null, CancellationToken.None);
 
@@ -25,9 +29,11 @@ public sealed class HybridRetrievalSearchServiceTests
     {
         var vectorHit = VectorHit("semantic late payment policy", score: 0.8);
         var service = new HybridRetrievalSearchService(
+            Options.Create(new RetrievalOptions()),
             new StubVectorSearchService([vectorHit]),
             new StubKeywordSearchService([]),
-            new RrfRankFusionService());
+            new RrfRankFusionService(),
+            new StubRerankerService());
 
         var results = await service.SearchAsync(
             Query("late payment"),
@@ -48,9 +54,11 @@ public sealed class HybridRetrievalSearchServiceTests
     {
         var keywordHit = KeywordHit("exact keyword fee match", score: 12);
         var service = new HybridRetrievalSearchService(
+            Options.Create(new RetrievalOptions()),
             new StubVectorSearchService([]),
             new StubKeywordSearchService([keywordHit]),
-            new RrfRankFusionService());
+            new RrfRankFusionService(),
+            new StubRerankerService());
 
         var results = await service.SearchAsync(
             Query("fee"),
@@ -73,9 +81,11 @@ public sealed class HybridRetrievalSearchServiceTests
         var vectorHit = VectorHit("vector match", score: 0.8, chunkId);
         var keywordHit = KeywordHit("keyword match", score: 10, chunkId);
         var service = new HybridRetrievalSearchService(
+            Options.Create(new RetrievalOptions()),
             new StubVectorSearchService([vectorHit]),
             new StubKeywordSearchService([keywordHit]),
-            new RrfRankFusionService());
+            new RrfRankFusionService(),
+            new StubRerankerService());
 
         var results = await service.SearchAsync(
             Query("late payment"),
@@ -97,9 +107,11 @@ public sealed class HybridRetrievalSearchServiceTests
         var keywordHybrid = KeywordHit("hybrid keyword", score: 1, hybridChunkId);
 
         var service = new HybridRetrievalSearchService(
+            Options.Create(new RetrievalOptions()),
             new StubVectorSearchService([vectorOnly, vectorHybrid]),
             new StubKeywordSearchService([keywordOnly, keywordHybrid]),
-            new RrfRankFusionService());
+            new RrfRankFusionService(),
+            new StubRerankerService());
 
         var results = await service.SearchAsync(
             Query("late payment"),
@@ -115,9 +127,12 @@ public sealed class HybridRetrievalSearchServiceTests
     }
 
     [Fact]
-    public async Task SearchAsync_respects_topK()
+    public async Task SearchAsync_reranks_fused_candidates_to_final_topK()
     {
+        var reranker = new StubRerankerService();
+
         var service = new HybridRetrievalSearchService(
+            Options.Create(new RetrievalOptions { CandidateCount = 30, MaxTopK = 20 }),
             new StubVectorSearchService(
             [
                 VectorHit("vector one", score: 3),
@@ -130,7 +145,8 @@ public sealed class HybridRetrievalSearchServiceTests
                 KeywordHit("keyword two", score: 2),
                 KeywordHit("keyword three", score: 1)
             ]),
-            new RrfRankFusionService());
+            new RrfRankFusionService(),
+            reranker);
 
         var results = await service.SearchAsync(
             Query("late payment"),
@@ -138,7 +154,11 @@ public sealed class HybridRetrievalSearchServiceTests
             filters: null,
             CancellationToken.None);
 
+        Assert.NotNull(reranker.ReceivedCandidates);
+        Assert.NotEmpty(reranker.ReceivedCandidates);
+        Assert.Equal(2, reranker.ReceivedTopK);
         Assert.Equal(2, results.Count);
+        Assert.All(results, result => Assert.NotNull(result.RerankScore));
     }
 
     [Fact]
@@ -148,9 +168,11 @@ public sealed class HybridRetrievalSearchServiceTests
         var keywordSearch = new StubKeywordSearchService([]);
 
         var service = new HybridRetrievalSearchService(
+            Options.Create(new RetrievalOptions()),
             vectorSearch,
             keywordSearch,
-            new RrfRankFusionService());
+            new RrfRankFusionService(),
+            new StubRerankerService());
 
         var filters = new SearchFilters(SourceType: "md");
 
@@ -252,5 +274,25 @@ public sealed class HybridRetrievalSearchServiceTests
             OriginalQuery: query,
             SemanticQuery: query,
             KeywordQuery: query);
+    }
+
+    private sealed class StubRerankerService : IRerankerService
+    {
+        public RetrievalQuery? ReceivedQuery { get; private set; }
+        public IReadOnlyList<SearchHit>? ReceivedCandidates { get; private set; }
+        public int? ReceivedTopK { get; private set; }
+
+        public Task<IReadOnlyList<SearchHit>> RerankAsync(RetrievalQuery query, IReadOnlyList<SearchHit> candidates, int topK, CancellationToken cancellationToken)
+        {
+            ReceivedQuery = query;
+            ReceivedCandidates = candidates;
+            ReceivedTopK = topK;
+
+            return Task.FromResult(
+                candidates
+                    .Take(topK)
+                    .Select((hit, index) => hit with { RerankScore = 1d - (index * 0.1d) })
+                    .ToList() as IReadOnlyList<SearchHit>);
+        }
     }
 }

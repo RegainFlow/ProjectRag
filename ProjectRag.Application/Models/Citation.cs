@@ -7,6 +7,7 @@ public sealed record Citation(
     Guid ChunkId,
     string Source,
     double RrfScore,
+    double? RerankScore,
     double? VectorScore,
     double? KeywordScore,
     string MatchedBy,

@@ -24,6 +24,7 @@ public sealed record SearchHitResponse(
     string SourceUri,
     string TextPreview,
     double RrfScore,
+    double? RerankScore,
     int? PageNumber,
     string Kind,
     string? SectionTitle,

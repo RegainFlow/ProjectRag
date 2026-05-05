@@ -28,19 +28,21 @@ public sealed class RagApiFactory : WebApplicationFactory<Program>, IDisposable
             services.RemoveAll<IEmbeddingGenerator<string, Embedding<float>>>();
             services.RemoveAll<IChatClient>();
             services.RemoveAll<ISearchIndexService>();
+            services.RemoveAll<IQueryRewriteService>();
             services.RemoveAll<IVectorSearchService>();
             services.RemoveAll<IKeywordSearchService>();
             services.RemoveAll<IRetrievalSearchService>();
-            services.RemoveAll<IQueryRewriteService>();
+            services.RemoveAll<IRerankerService>();
 
             services.AddSingleton<IDocumentExtractor, FakeDocumentExtractor>();
             services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>, FakeEmbeddingGenerator>();
             services.AddSingleton<IChatClient, FakeChatClient>();
             services.AddSingleton<ISearchIndexService, FakeSearchIndexService>();
+            services.AddScoped<IQueryRewriteService, FakeQueryRewriteService>();
             services.AddScoped<IVectorSearchService, FakeVectorSearchService>();
             services.AddScoped<IKeywordSearchService, InMemoryKeywordSearchService>();
             services.AddScoped<IRetrievalSearchService, HybridRetrievalSearchService>();
-            services.AddScoped<IQueryRewriteService, FakeQueryRewriteService>();
+            services.AddScoped<IRerankerService, FakeRerankerService>();
 
             services.AddDbContext<RagDbContext>(options =>
                 options.UseSqlite(_connection));

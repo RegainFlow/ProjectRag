@@ -58,6 +58,8 @@ public sealed class AskEndpointsTests : IClassFixture<RagApiFactory>
             Assert.False(string.IsNullOrWhiteSpace(firstCitation.ChunkId));
             Assert.Equal(filePath, firstCitation.SourceUri);
             Assert.True(firstCitation.RrfScore > 0);
+            Assert.NotNull(firstCitation.RerankScore);
+            Assert.True(firstCitation.RerankScore > 0);
             Assert.Null(firstCitation.VectorScore);
             Assert.NotNull(firstCitation.KeywordScore);
             Assert.Equal("keyword", firstCitation.MatchedBy);
@@ -99,7 +101,8 @@ public sealed class AskEndpointsTests : IClassFixture<RagApiFactory>
             Assert.Contains(body.Citations, citation =>
                 citation.PageNumber == 1
                 && citation.Kind == "Paragraph"
-                && citation.SectionTitle == "Invoice 1001");
+                && citation.SectionTitle == "Invoice 1001"
+                && citation.RerankScore is > 0);
         }
         finally
         {

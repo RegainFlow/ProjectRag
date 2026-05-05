@@ -13,4 +13,5 @@ public sealed record SearchHit(
     string? SectionTitle,
     double? VectorScore = null,
     double? KeywordScore = null,
-    string MatchedBy = "unknown");
+    string MatchedBy = "unknown",
+    double? RerankScore = null);

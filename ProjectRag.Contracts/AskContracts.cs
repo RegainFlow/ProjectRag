@@ -16,6 +16,7 @@ public sealed record CitationResponse(
     string SourceUri,
     int? PageNumber,
     double RrfScore,
+    double? RerankScore,
     double? VectorScore,
     double? KeywordScore,
     string MatchedBy,

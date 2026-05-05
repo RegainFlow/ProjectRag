@@ -20,7 +20,7 @@ This file tracks known improvement ideas that are useful later, but should not d
 ## Search
 
 - Add timing diagnostics.
-  - Split latency into query rewrite, embedding, vector search, keyword search, and merge.
+  - Split latency into query rewrite, embedding, vector search, keyword search, RRF, and reranking.
 - Add a rewrite toggle.
   - Query rewriting improves understanding, but local LLM rewrite can add noticeable latency.
   - Consider `enableQueryRewrite` or a config flag after the learning phase.
@@ -29,15 +29,19 @@ This file tracks known improvement ideas that are useful later, but should not d
 - Compare application-level RRF with provider-native fusion later.
   - Current RRF is implemented in .NET for learning and provider neutrality.
   - Elasticsearch native RRF can be evaluated later as a provider optimization.
+- Improve reranking performance and reliability.
+  - Current reranking uses the local chat model and can be slow.
+  - Compare local LLM reranking with Elasticsearch native reranking, Azure AI Search semantic ranking, and local ONNX cross-encoders.
+  - Evaluate structured outputs so rerank responses are less dependent on prompt-following.
 - Evaluate search quality before optimizing.
-  - Compare vector-only, keyword-only, hybrid, rewrite+hybrid, and later reranked results.
+  - Compare vector-only, keyword-only, hybrid, rewrite+hybrid, and reranked results.
 - Keep metadata filters provider-neutral at the API boundary.
   - Elasticsearch query details should stay inside Infrastructure.
 
 ## Ask
 
 - Add timing diagnostics.
-  - Split latency into rewrite, retrieval, prompt construction, and chat generation.
+  - Split latency into rewrite, retrieval, reranking, prompt construction, and chat generation.
 - Consider streaming answers.
   - `/ask` currently waits for the full chat response.
   - Streaming would improve perceived latency.

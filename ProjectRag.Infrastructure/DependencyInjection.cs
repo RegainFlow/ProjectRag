@@ -24,12 +24,9 @@ public static class DependencyInjection
         services.AddPersistence(configuration);
         services.AddOllama(configuration);
         services.AddAzureDocumentIntelligence(configuration);
-        services.AddIngestion(configuration);
         services.AddElasticsearch(configuration);
-        services.AddScoped<IRetrievalSearchService, HybridRetrievalSearchService>();
-        services.AddScoped<IRagAnswerService, RagAnswerService>();
-        services.AddScoped<IQueryRewriteService, LlmQueryRewriteService>();
-        services.AddScoped<IRankFusionService, RrfRankFusionService>();
+        services.AddIngestion(configuration);
+        services.AddQueryAndRetrieval(configuration);
 
         return services;
     }
@@ -152,6 +149,21 @@ public static class DependencyInjection
         services.AddScoped<ISearchIndexService, ElasticSearchIndexService>();
         services.AddScoped<IKeywordSearchService, ElasticKeywordSearchService>();
         services.AddScoped<IVectorSearchService, ElasticVectorSearchService>();
+
+        return services;
+    }
+
+    private static IServiceCollection AddQueryAndRetrieval(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.Configure<RetrievalOptions>(configuration.GetSection(RetrievalOptions.SectionName));
+
+        services.AddScoped<IQueryRewriteService, LlmQueryRewriteService>();
+        services.AddScoped<IRetrievalSearchService, HybridRetrievalSearchService>();
+        services.AddScoped<IRankFusionService, RrfRankFusionService>();
+        services.AddScoped<IRerankerService, LlmRerankerService>();
+        services.AddScoped<IRagAnswerService, RagAnswerService>();
 
         return services;
     }

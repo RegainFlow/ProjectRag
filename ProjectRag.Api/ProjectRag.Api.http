@@ -33,7 +33,7 @@ Accept: application/json
 GET {{baseUrl}}/documents
 Accept: application/json
 
-### Search text documents
+### Search text documents with rewrite, hybrid retrieval, RRF, and reranking
 POST {{baseUrl}}/search
 Content-Type: application/json
 Accept: application/json
@@ -56,14 +56,17 @@ Accept: application/json
   "topK": 3
 }
 
-### Ask text documents
+### Ask text documents with reranked citations
 POST {{baseUrl}}/ask
 Content-Type: application/json
 Accept: application/json
 
 {
   "question": "What are the late payment fees?",
-  "topK": 5
+  "topK": 5,
+  "filters": {
+    "sourceType": "md"
+  }
 }
 
 ### Ask scanned documents
