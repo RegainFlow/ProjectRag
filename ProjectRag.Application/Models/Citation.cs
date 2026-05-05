@@ -6,7 +6,10 @@ public sealed record Citation(
     Guid DocumentId,
     Guid ChunkId,
     string Source,
-    double Score,
+    double RrfScore,
+    double? VectorScore,
+    double? KeywordScore,
+    string MatchedBy,
     int? PageNumber,
     ChunkKind Kind,
     string? SectionTitle);

@@ -75,7 +75,7 @@ internal sealed class ElasticVectorSearchService : IVectorSearchService
                     Guid.Parse(source.ChunkId),
                     source.SourceUri,
                     source.Text,
-                    hit.Score ?? 0,
+                    RrfScore: 0,
                     source.PageNumber,
                     Enum.TryParse<ChunkKind>(source.Kind, out var kind) ? kind : ChunkKind.Unknown,
                     source.SectionTitle,

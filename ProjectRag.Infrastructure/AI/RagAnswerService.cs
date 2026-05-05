@@ -76,7 +76,10 @@ internal sealed class RagAnswerService : IRagAnswerService
                 hit.DocumentId,
                 hit.ChunkId,
                 hit.Source,
-                hit.Score,
+                hit.RrfScore,
+                hit.VectorScore,
+                hit.KeywordScore,
+                hit.MatchedBy,
                 hit.PageNumber,
                 hit.Kind,
                 hit.SectionTitle
@@ -95,7 +98,7 @@ internal sealed class RagAnswerService : IRagAnswerService
                 DocumentId: {hit.DocumentId}
                 ChunkId: {hit.ChunkId}
                 Source: {hit.Source}
-                Score: {hit.Score}
+                Score: {hit.RrfScore}
                 PageNumber: {hit.PageNumber}
                 Kind: {hit.Kind}
                 Section: {hit.SectionTitle}

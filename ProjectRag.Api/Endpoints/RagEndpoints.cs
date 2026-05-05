@@ -145,7 +145,7 @@ internal static class RagEndpoints
                     x.DocumentId.ToString(),
                     x.Source,
                     x.Text.Length <= 300 ? x.Text : x.Text[..300], // limit text preview size to 300
-                    x.Score,
+                    x.RrfScore,
                     x.PageNumber,
                     x.Kind.ToString(),
                     x.SectionTitle,
@@ -160,7 +160,6 @@ internal static class RagEndpoints
         group.MapPost("/ask", async (
             AskRequest request,
             IRagAnswerService ragAnswerService,
-            IQueryRewriteService queryRewriteService,
             CancellationToken cancellationToken) =>
         {
             var filters = request.Filters is null
@@ -187,7 +186,10 @@ internal static class RagEndpoints
                     x.ChunkId.ToString(),
                     x.Source,
                     x.PageNumber,
-                    x.Score,
+                    x.RrfScore,
+                    x.VectorScore,
+                    x.KeywordScore,
+                    x.MatchedBy,
                     x.Kind.ToString(),
                     x.SectionTitle)).ToList());
 

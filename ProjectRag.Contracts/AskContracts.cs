@@ -15,6 +15,9 @@ public sealed record CitationResponse(
     string ChunkId,
     string SourceUri,
     int? PageNumber,
-    double Score,
+    double RrfScore,
+    double? VectorScore,
+    double? KeywordScore,
+    string MatchedBy,
     string Kind,
     string? SectionTitle);

@@ -5,17 +5,18 @@ namespace ProjectRag.Infrastructure.Search;
 
 internal sealed class HybridRetrievalSearchService : IRetrievalSearchService
 {
-    private const double HybridMatchBonus = 0.25;
-
     private readonly IVectorSearchService _vectorSearchService;
     private readonly IKeywordSearchService _keywordSearchService;
+    private readonly IRankFusionService _rankFusionService;
 
     public HybridRetrievalSearchService(
         IVectorSearchService vectorSearchService,
-        IKeywordSearchService keywordSearchService)
+        IKeywordSearchService keywordSearchService,
+        IRankFusionService rankFusionService)
     {
         _vectorSearchService = vectorSearchService;
         _keywordSearchService = keywordSearchService;
+        _rankFusionService = rankFusionService;
     }
 
     public async Task<IReadOnlyList<SearchHit>> SearchAsync(RetrievalQuery query, int topK, SearchFilters? filters, CancellationToken cancellationToken)
@@ -38,63 +39,10 @@ internal sealed class HybridRetrievalSearchService : IRetrievalSearchService
         var vectorResults = await vectorResultsTask;
         var keywordResults = await keywordResultsTask;
 
-        var vectorScores = NormalizeScores(vectorResults);
-        var keywordScores = NormalizeScores(keywordResults);
-
-        var hitsByChunkId = vectorResults
-            .Concat(keywordResults)
-            .GroupBy(x => x.ChunkId)
-            .ToDictionary(
-                x => x.Key,
-                x => x.First());
-
-        return hitsByChunkId
-            .Select(pair =>
-            {
-                var chunkId = pair.Key;
-                var hit = pair.Value;
-
-                var hasVectorScore = vectorScores.TryGetValue(chunkId, out var vectorScore);
-                var hasKeywordScore = keywordScores.TryGetValue(chunkId, out var keywordScore);
-
-                var mergedScore = vectorScore + keywordScore;
-
-                if (hasVectorScore && hasKeywordScore)
-                {
-                    mergedScore += HybridMatchBonus;
-                }
-
-                var matchedBy = hasVectorScore && hasKeywordScore ? "hybrid" : hasVectorScore ? "vector" : "keyword";
-
-                return hit with
-                {
-                    Score = mergedScore,
-                    VectorScore = hasVectorScore ? vectorScore : null,
-                    KeywordScore = hasKeywordScore ? keywordScore : null,
-                    MatchedBy = matchedBy
-                };
-            })
-            .OrderByDescending(x => x.Score)
-            .Take(topK)
-            .ToList();
-    }
-
-    private static Dictionary<Guid, double> NormalizeScores(IReadOnlyList<SearchHit> hits)
-    {
-        if (hits.Count == 0)
-        {
-            return [];
-        }
-
-        var maxScore = hits.Max(x => x.Score);
-
-        if (maxScore <= 0)
-        {
-            return hits.ToDictionary(x => x.ChunkId, _ => 0d);
-        }
-
-        return hits.ToDictionary(
-            x => x.ChunkId,
-            x => x.Score / maxScore);
+        return await _rankFusionService.FuseAsync(
+            vectorResults,
+            keywordResults,
+            topK,
+            cancellationToken);
     }
 }

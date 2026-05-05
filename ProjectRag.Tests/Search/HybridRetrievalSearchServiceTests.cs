@@ -12,7 +12,8 @@ public sealed class HybridRetrievalSearchServiceTests
     {
         var service = new HybridRetrievalSearchService(
             new StubVectorSearchService([]),
-            new StubKeywordSearchService([]));
+            new StubKeywordSearchService([]),
+            new RrfRankFusionService());
 
         var results = await service.SearchAsync(Query(""), topK: 5, filters: null, CancellationToken.None);
 
@@ -22,10 +23,11 @@ public sealed class HybridRetrievalSearchServiceTests
     [Fact]
     public async Task SearchAsync_includes_vector_only_hits()
     {
-        var vectorHit = Hit("semantic late payment policy", score: 0.8);
+        var vectorHit = VectorHit("semantic late payment policy", score: 0.8);
         var service = new HybridRetrievalSearchService(
             new StubVectorSearchService([vectorHit]),
-            new StubKeywordSearchService([]));
+            new StubKeywordSearchService([]),
+            new RrfRankFusionService());
 
         var results = await service.SearchAsync(
             Query("late payment"),
@@ -35,7 +37,7 @@ public sealed class HybridRetrievalSearchServiceTests
 
         var result = Assert.Single(results);
         Assert.Equal(vectorHit.ChunkId, result.ChunkId);
-        Assert.Equal(1d, result.Score);
+        Assert.Equal(1d / 61d, result.RrfScore);
         Assert.Equal("vector", result.MatchedBy);
         Assert.NotNull(result.VectorScore);
         Assert.Null(result.KeywordScore);
@@ -44,10 +46,11 @@ public sealed class HybridRetrievalSearchServiceTests
     [Fact]
     public async Task SearchAsync_includes_keyword_only_hits()
     {
-        var keywordHit = Hit("exact keyword fee match", score: 12);
+        var keywordHit = KeywordHit("exact keyword fee match", score: 12);
         var service = new HybridRetrievalSearchService(
             new StubVectorSearchService([]),
-            new StubKeywordSearchService([keywordHit]));
+            new StubKeywordSearchService([keywordHit]),
+            new RrfRankFusionService());
 
         var results = await service.SearchAsync(
             Query("fee"),
@@ -57,7 +60,7 @@ public sealed class HybridRetrievalSearchServiceTests
 
         var result = Assert.Single(results);
         Assert.Equal(keywordHit.ChunkId, result.ChunkId);
-        Assert.Equal(1d, result.Score);
+        Assert.Equal(1d / 61d, result.RrfScore);
         Assert.Equal("keyword", result.MatchedBy);
         Assert.Null(result.VectorScore);
         Assert.NotNull(result.KeywordScore);
@@ -67,11 +70,12 @@ public sealed class HybridRetrievalSearchServiceTests
     public async Task SearchAsync_deduplicates_same_chunk_from_both_searches()
     {
         var chunkId = Guid.NewGuid();
-        var vectorHit = Hit("vector match", score: 0.8, chunkId);
-        var keywordHit = Hit("keyword match", score: 10, chunkId);
+        var vectorHit = VectorHit("vector match", score: 0.8, chunkId);
+        var keywordHit = KeywordHit("keyword match", score: 10, chunkId);
         var service = new HybridRetrievalSearchService(
             new StubVectorSearchService([vectorHit]),
-            new StubKeywordSearchService([keywordHit]));
+            new StubKeywordSearchService([keywordHit]),
+            new RrfRankFusionService());
 
         var results = await service.SearchAsync(
             Query("late payment"),
@@ -84,17 +88,18 @@ public sealed class HybridRetrievalSearchServiceTests
     }
 
     [Fact]
-    public async Task SearchAsync_boosts_chunk_matched_by_both_searches()
+    public async Task SearchAsync_fuses_chunk_matched_by_both_searches()
     {
         var hybridChunkId = Guid.NewGuid();
-        var vectorOnly = Hit("vector only", score: 1);
-        var keywordOnly = Hit("keyword only", score: 1);
-        var vectorHybrid = Hit("hybrid vector", score: 1, hybridChunkId);
-        var keywordHybrid = Hit("hybrid keyword", score: 1, hybridChunkId);
+        var vectorOnly = VectorHit("vector only", score: 1);
+        var keywordOnly = KeywordHit("keyword only", score: 1);
+        var vectorHybrid = VectorHit("hybrid vector", score: 1, hybridChunkId);
+        var keywordHybrid = KeywordHit("hybrid keyword", score: 1, hybridChunkId);
 
         var service = new HybridRetrievalSearchService(
             new StubVectorSearchService([vectorOnly, vectorHybrid]),
-            new StubKeywordSearchService([keywordOnly, keywordHybrid]));
+            new StubKeywordSearchService([keywordOnly, keywordHybrid]),
+            new RrfRankFusionService());
 
         var results = await service.SearchAsync(
             Query("late payment"),
@@ -103,7 +108,7 @@ public sealed class HybridRetrievalSearchServiceTests
             CancellationToken.None);
 
         Assert.Equal(hybridChunkId, results[0].ChunkId);
-        Assert.True(results[0].Score > results[1].Score);
+        Assert.True(results[0].RrfScore > results[1].RrfScore);
         Assert.Equal("hybrid", results[0].MatchedBy);
         Assert.NotNull(results[0].VectorScore);
         Assert.NotNull(results[0].KeywordScore);
@@ -115,16 +120,17 @@ public sealed class HybridRetrievalSearchServiceTests
         var service = new HybridRetrievalSearchService(
             new StubVectorSearchService(
             [
-                Hit("vector one", score: 3),
-                Hit("vector two", score: 2),
-                Hit("vector three", score: 1)
+                VectorHit("vector one", score: 3),
+                VectorHit("vector two", score: 2),
+                VectorHit("vector three", score: 1)
             ]),
             new StubKeywordSearchService(
             [
-                Hit("keyword one", score: 3),
-                Hit("keyword two", score: 2),
-                Hit("keyword three", score: 1)
-            ]));
+                KeywordHit("keyword one", score: 3),
+                KeywordHit("keyword two", score: 2),
+                KeywordHit("keyword three", score: 1)
+            ]),
+            new RrfRankFusionService());
 
         var results = await service.SearchAsync(
             Query("late payment"),
@@ -140,7 +146,11 @@ public sealed class HybridRetrievalSearchServiceTests
     {
         var vectorSearch = new StubVectorSearchService([]);
         var keywordSearch = new StubKeywordSearchService([]);
-        var service = new HybridRetrievalSearchService(vectorSearch, keywordSearch);
+
+        var service = new HybridRetrievalSearchService(
+            vectorSearch,
+            keywordSearch,
+            new RrfRankFusionService());
 
         var filters = new SearchFilters(SourceType: "md");
 
@@ -161,17 +171,33 @@ public sealed class HybridRetrievalSearchServiceTests
         Assert.Equal("\"late payment\" OR overdue", keywordSearch.ReceivedQuery);
     }
 
-    private static SearchHit Hit(string text, double score, Guid? chunkId = null)
+    private static SearchHit VectorHit(string text, double score, Guid? chunkId = null)
     {
         return new SearchHit(
             Guid.NewGuid(),
             chunkId ?? Guid.NewGuid(),
             "source.md",
             text,
-            score,
+            RrfScore: 0,
             null,
             ChunkKind.Paragraph,
-            null);
+            null,
+            VectorScore: score,
+            MatchedBy: "vector");
+    }
+    private static SearchHit KeywordHit(string text, double score, Guid? chunkId = null)
+    {
+        return new SearchHit(
+            Guid.NewGuid(),
+            chunkId ?? Guid.NewGuid(),
+            "source.md",
+            text,
+            RrfScore: 0,
+            null,
+            ChunkKind.Paragraph,
+            null,
+            KeywordScore: score,
+            MatchedBy: "keyword");
     }
 
     private sealed class StubVectorSearchService : IVectorSearchService

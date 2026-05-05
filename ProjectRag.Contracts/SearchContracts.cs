@@ -23,7 +23,7 @@ public sealed record SearchHitResponse(
     string DocumentId,
     string SourceUri,
     string TextPreview,
-    double Score,
+    double RrfScore,
     int? PageNumber,
     string Kind,
     string? SectionTitle,

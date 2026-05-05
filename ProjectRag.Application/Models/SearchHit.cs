@@ -7,7 +7,7 @@ public sealed record SearchHit(
     Guid ChunkId,
     string Source,
     string Text,
-    double Score,
+    double RrfScore,
     int? PageNumber,
     ChunkKind Kind,
     string? SectionTitle,

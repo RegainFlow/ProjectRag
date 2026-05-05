@@ -60,10 +60,12 @@ public sealed class SearchEndpointsTests : IClassFixture<RagApiFactory>
             Assert.False(string.IsNullOrWhiteSpace(hit.DocumentId));
             Assert.False(string.IsNullOrWhiteSpace(hit.ChunkId));
             Assert.Contains("monthly fee", hit.TextPreview);
-            Assert.True(hit.Score > 0);
+            Assert.True(hit.RrfScore > 0);
+            Assert.Null(hit.VectorScore);
+            Assert.NotNull(hit.KeywordScore);
+            Assert.Equal("keyword", hit.MatchedBy);
             Assert.Equal("Paragraph", hit.Kind);
             Assert.False(string.IsNullOrWhiteSpace(hit.MatchedBy));
-            Assert.Contains(hit.MatchedBy, new[] { "vector", "keyword", "hybrid" });
         }
         finally
         {

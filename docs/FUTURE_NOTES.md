@@ -26,9 +26,9 @@ This file tracks known improvement ideas that are useful later, but should not d
   - Consider `enableQueryRewrite` or a config flag after the learning phase.
 - Cache rewritten queries.
   - Same original query should not always require another LLM rewrite.
-- Replace simple score merge with RRF.
-  - Current hybrid merge is intentionally simple.
-  - RRF should make fusion more stable across keyword and vector score scales.
+- Compare application-level RRF with provider-native fusion later.
+  - Current RRF is implemented in .NET for learning and provider neutrality.
+  - Elasticsearch native RRF can be evaluated later as a provider optimization.
 - Evaluate search quality before optimizing.
   - Compare vector-only, keyword-only, hybrid, rewrite+hybrid, and later reranked results.
 - Keep metadata filters provider-neutral at the API boundary.

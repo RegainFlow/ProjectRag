@@ -57,7 +57,10 @@ public sealed class AskEndpointsTests : IClassFixture<RagApiFactory>
             Assert.False(string.IsNullOrWhiteSpace(firstCitation.DocumentId));
             Assert.False(string.IsNullOrWhiteSpace(firstCitation.ChunkId));
             Assert.Equal(filePath, firstCitation.SourceUri);
-            Assert.True(firstCitation.Score > 0);
+            Assert.True(firstCitation.RrfScore > 0);
+            Assert.Null(firstCitation.VectorScore);
+            Assert.NotNull(firstCitation.KeywordScore);
+            Assert.Equal("keyword", firstCitation.MatchedBy);
             Assert.Null(firstCitation.PageNumber);
             Assert.Equal("Paragraph", firstCitation.Kind);
         }

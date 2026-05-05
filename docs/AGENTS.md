@@ -16,8 +16,9 @@ ProjectRag is built in phases:
 4. Persistent local retrieval and idempotent ingestion.
 5. Hybrid retrieval with Elasticsearch.
 6. Query rewriting.
-7. RRF, reranking, grounded answer generation.
-8. Evaluation and agentic RAG.
+7. RRF fusion.
+8. Reranking, grounded answer generation.
+9. Evaluation and agentic RAG.
 
 Keep changes aligned with the active phase. Do not introduce later-phase abstractions before they are needed.
 
@@ -26,7 +27,7 @@ Keep changes aligned with the active phase. Do not introduce later-phase abstrac
 - `ProjectRag.Api` owns HTTP endpoints and the application composition root.
 - `ProjectRag.Contracts` owns API DTOs.
 - `ProjectRag.Domain` owns entities and enums.
-- `ProjectRag.Infrastructure` owns EF Core, SQLite, migrations, persistence configuration, provider integrations, document extraction, chunking implementations, Elasticsearch indexing/search, query rewriting, and retrieval implementations.
+- `ProjectRag.Infrastructure` owns EF Core, SQLite, migrations, persistence configuration, provider integrations, document extraction, chunking implementations, Elasticsearch indexing/search, query rewriting, RRF fusion, and retrieval implementations.
 - `ProjectRag.Tests` owns test coverage.
 
 Dependency direction should stay:
@@ -62,6 +63,8 @@ Avoid references from `Domain` to EF Core, ASP.NET Core, Infrastructure, or API.
 - Keep Elasticsearch storage records and query-building details inside Infrastructure. API contracts should expose search diagnostics, not Elasticsearch response types.
 - `IVectorSearchService` should resolve to the active Elasticsearch vector implementation during runtime.
 - Query rewriting should remain optional from a reliability perspective: if rewriting fails, retrieval should fall back to the original query.
+- RRF fusion should stay provider-neutral in application/infrastructure code. Do not use Elasticsearch native RRF unless the task is explicitly to compare provider-native fusion.
+- `RrfScore` is the final fused ranking score. `VectorScore` and `KeywordScore` should stay raw provider scores for diagnostics.
 - Keep API tests independent from local LLMs by replacing `IQueryRewriteService` with a fake implementation.
 - Ingestion and answer generation still run inline in HTTP requests. Short `.http` client timeouts can cancel them; use longer-timeout curl commands for manual smoke testing until ingestion moves to a background worker.
 - Do not commit real Azure keys, local scanned datasets, real customer documents, or local SQLite database files.

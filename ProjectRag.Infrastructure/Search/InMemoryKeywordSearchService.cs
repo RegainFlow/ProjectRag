@@ -57,7 +57,7 @@ internal sealed class InMemoryKeywordSearchService : IKeywordSearchService
                 x.Chunk.Id,
                 x.Chunk.Document?.SourceUri ?? "",
                 x.Chunk.Text,
-                x.Score,
+                RrfScore: 0,
                 x.Chunk.PageNumber,
                 x.Chunk.Kind,
                 x.Chunk.SectionTitle,

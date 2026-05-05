@@ -24,11 +24,12 @@ public static class DependencyInjection
         services.AddPersistence(configuration);
         services.AddOllama(configuration);
         services.AddAzureDocumentIntelligence(configuration);
-        services.AddElasticsearch(configuration);
         services.AddIngestion(configuration);
-        services.AddScoped<IQueryRewriteService, LlmQueryRewriteService>();
-
+        services.AddElasticsearch(configuration);
+        services.AddScoped<IRetrievalSearchService, HybridRetrievalSearchService>();
         services.AddScoped<IRagAnswerService, RagAnswerService>();
+        services.AddScoped<IQueryRewriteService, LlmQueryRewriteService>();
+        services.AddScoped<IRankFusionService, RrfRankFusionService>();
 
         return services;
     }
@@ -151,7 +152,6 @@ public static class DependencyInjection
         services.AddScoped<ISearchIndexService, ElasticSearchIndexService>();
         services.AddScoped<IKeywordSearchService, ElasticKeywordSearchService>();
         services.AddScoped<IVectorSearchService, ElasticVectorSearchService>();
-        services.AddScoped<IRetrievalSearchService, HybridRetrievalSearchService>();
 
         return services;
     }

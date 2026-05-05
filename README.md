@@ -2,7 +2,7 @@
 
 ProjectRag is a learning-first .NET RAG service. The project is being built in phases so each layer introduces one production retrieval-augmented generation capability at a time.
 
-Current status: Phase 5 query rewriting is implemented. The API can ingest local text/markdown files plus scanned PDFs/images with Azure AI Document Intelligence, persist layout-aware chunks in SQLite, index chunk text and embeddings into Elasticsearch, rewrite user questions into semantic and keyword search queries, run hybrid retrieval, and generate grounded answers with citations.
+Current status: Phase 6 RRF fusion is implemented. The API can ingest local text/markdown files plus scanned PDFs/images with Azure AI Document Intelligence, persist layout-aware chunks in SQLite, index chunk text and embeddings into Elasticsearch, rewrite user questions into semantic and keyword search queries, fuse keyword/vector results with Reciprocal Rank Fusion, and generate grounded answers with citations.
 
 ## Phase Roadmap
 
@@ -12,7 +12,8 @@ Current status: Phase 5 query rewriting is implemented. The API can ingest local
 4. Phase 3: Persistent local RAG with content-hash idempotency.
 5. Phase 4: Elasticsearch hybrid keyword + vector retrieval with metadata filters.
 6. Phase 5: LLM-powered query rewriting before retrieval.
-7. Phase 6+: RRF fusion, reranking, stricter grounded answers, evaluation, and agentic RAG.
+7. Phase 6: Reciprocal Rank Fusion for keyword/vector result fusion.
+8. Phase 7+: Reranking, stricter grounded answers, evaluation, and agentic RAG.
 
 ## Solution Layout
 
@@ -46,7 +47,7 @@ POST /search
 POST /ask
 ```
 
-`/search` rewrites the original query into semantic and keyword search queries, runs Elasticsearch vector search plus keyword/BM25 search, and merges the candidates. `/ask` uses the same rewritten hybrid retrieval path, builds a grounded prompt, calls the configured chat model, and returns citations. Responses include query rewrite diagnostics. Scanned document citations can include page and section metadata.
+`/search` rewrites the original query into semantic and keyword search queries, runs Elasticsearch vector search plus keyword/BM25 search, and fuses candidates with Reciprocal Rank Fusion. `/ask` uses the same rewritten hybrid retrieval path, builds a grounded prompt, calls the configured chat model, and returns citations. Responses include query rewrite and retrieval diagnostics, including `rrfScore`, raw vector score, raw keyword score, and match source. Scanned document citations can include page and section metadata.
 
 ## Prerequisites
 
@@ -213,20 +214,22 @@ dotnet user-secrets set "DocumentIntelligence:ApiKey" "YOUR-KEY" --project ./Pro
 
 The SQLite database file is local runtime state and should not be committed. Secrets should not be stored in committed `appsettings` files. Use user-secrets, environment variables, or deployment secret stores for credentials.
 
-## Query Rewriting And Hybrid Retrieval
+## Query Rewriting And RRF Retrieval
 
 Phase 5 adds an LLM-powered rewrite step before retrieval. The rewrite service returns the original query, a semantic query for vector retrieval, and a keyword query for full-text retrieval. If rewriting fails, retrieval falls back to the original query.
+
+Phase 6 fuses vector and keyword result lists with Reciprocal Rank Fusion. `RrfScore` is the final ranking score. `VectorScore` and `KeywordScore` remain raw provider scores for diagnostics.
 
 Searchable chunk records are stored in Elasticsearch during ingestion. Each record includes chunk text, metadata, and an embedding generated with Ollama.
 
 ```text
 ingestion: document -> chunks -> chunk embeddings -> Elasticsearch index
-search: original query -> query rewrite -> keyword search + vector search -> merge candidates -> ranked hits
+search: original query -> query rewrite -> keyword search + vector search -> RRF fusion -> ranked hits
 ```
 
 Content hashing prevents unchanged source files from being re-extracted and re-chunked. If a file changes, the ingestion flow deletes old search records for the document, replaces its chunks, and indexes the new chunks.
 
-The Phase 4 merge is intentionally simple: vector and keyword scores are normalized independently, deduplicated by chunk id, and boosted when both retrieval paths match. Phase 6 will replace this with Reciprocal Rank Fusion.
+The current RRF formula is `score = sum(1 / (60 + rank))`, where rank starts at 1 in each result list. RRF is implemented in application code through `IRankFusionService` rather than Elasticsearch native RRF so the fusion behavior stays provider-neutral and visible for learning.
 
 ## References
 
