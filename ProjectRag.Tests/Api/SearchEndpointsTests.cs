@@ -44,14 +44,16 @@ public sealed class SearchEndpointsTests : IClassFixture<RagApiFactory>
             var body = await searchResponse.Content.ReadFromJsonAsync<SearchResponse>();
 
             Assert.NotNull(body);
+
             Assert.Equal("late payment fees", body.Query);
+
             Assert.NotNull(body.QueryRewrite);
             Assert.Equal("late payment fees", body.QueryRewrite.OriginalQuery);
             Assert.Equal("late payment fees", body.QueryRewrite.SemanticQuery);
             Assert.Equal("late payment fees", body.QueryRewrite.KeywordQuery);
             Assert.Equal("test-fake", body.QueryRewrite.Status);
-            Assert.NotEmpty(body.Results);
 
+            Assert.NotEmpty(body.Results);
 
             var hit = Assert.Single(
                 body.Results,
@@ -59,15 +61,17 @@ public sealed class SearchEndpointsTests : IClassFixture<RagApiFactory>
 
             Assert.False(string.IsNullOrWhiteSpace(hit.DocumentId));
             Assert.False(string.IsNullOrWhiteSpace(hit.ChunkId));
+            Assert.Equal(filePath, hit.SourceUri);
             Assert.Contains("monthly fee", hit.TextPreview);
+
             Assert.True(hit.RrfScore > 0);
             Assert.NotNull(hit.RerankScore);
             Assert.True(hit.RerankScore > 0);
             Assert.Null(hit.VectorScore);
             Assert.NotNull(hit.KeywordScore);
             Assert.Equal("keyword", hit.MatchedBy);
+
             Assert.Equal("Paragraph", hit.Kind);
-            Assert.False(string.IsNullOrWhiteSpace(hit.MatchedBy));
         }
         finally
         {
@@ -101,11 +105,20 @@ public sealed class SearchEndpointsTests : IClassFixture<RagApiFactory>
             var body = await searchResponse.Content.ReadFromJsonAsync<SearchResponse>();
 
             Assert.NotNull(body);
-            Assert.Contains(body.Results, results =>
-            results.PageNumber == 1
-            && results.Kind == "Paragraph"
-            && results.SectionTitle == "Invoice 1001"
-            && results.RerankScore is > 0);
+            Assert.NotEmpty(body.Results);
+
+            Assert.Contains(body.Results, result =>
+                result.PageNumber == 1
+                && result.Kind == "Paragraph"
+                && result.SectionTitle == "Invoice 1001");
+
+            var hit = body.Results.First(result =>
+                result.PageNumber == 1
+                && result.Kind == "Paragraph"
+                && result.SectionTitle == "Invoice 1001");
+
+            Assert.NotNull(hit.RerankScore);
+            Assert.True(hit.RerankScore > 0);
         }
         finally
         {
@@ -154,6 +167,7 @@ public sealed class SearchEndpointsTests : IClassFixture<RagApiFactory>
 
             Assert.NotNull(body);
             Assert.NotEmpty(body.Results);
+
             Assert.All(body.Results, result => Assert.NotNull(result.RerankScore));
             Assert.All(body.Results, result => Assert.EndsWith(".md", result.SourceUri));
             Assert.DoesNotContain(body.Results, result => result.SourceUri == textPath);

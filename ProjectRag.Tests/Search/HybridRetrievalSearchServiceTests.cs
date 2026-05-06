@@ -42,9 +42,12 @@ public sealed class HybridRetrievalSearchServiceTests
             CancellationToken.None);
 
         var result = Assert.Single(results);
+
         Assert.Equal(vectorHit.ChunkId, result.ChunkId);
+
         Assert.Equal(1d / 61d, result.RrfScore);
         Assert.Equal("vector", result.MatchedBy);
+
         Assert.NotNull(result.VectorScore);
         Assert.Null(result.KeywordScore);
     }
@@ -67,9 +70,12 @@ public sealed class HybridRetrievalSearchServiceTests
             CancellationToken.None);
 
         var result = Assert.Single(results);
+
         Assert.Equal(keywordHit.ChunkId, result.ChunkId);
+
         Assert.Equal(1d / 61d, result.RrfScore);
         Assert.Equal("keyword", result.MatchedBy);
+
         Assert.Null(result.VectorScore);
         Assert.NotNull(result.KeywordScore);
     }
@@ -94,6 +100,7 @@ public sealed class HybridRetrievalSearchServiceTests
             CancellationToken.None);
 
         var result = Assert.Single(results);
+
         Assert.Equal(chunkId, result.ChunkId);
     }
 
@@ -122,6 +129,7 @@ public sealed class HybridRetrievalSearchServiceTests
         Assert.Equal(hybridChunkId, results[0].ChunkId);
         Assert.True(results[0].RrfScore > results[1].RrfScore);
         Assert.Equal("hybrid", results[0].MatchedBy);
+
         Assert.NotNull(results[0].VectorScore);
         Assert.NotNull(results[0].KeywordScore);
     }
@@ -157,6 +165,7 @@ public sealed class HybridRetrievalSearchServiceTests
         Assert.NotNull(reranker.ReceivedCandidates);
         Assert.NotEmpty(reranker.ReceivedCandidates);
         Assert.Equal(2, reranker.ReceivedTopK);
+
         Assert.Equal(2, results.Count);
         Assert.All(results, result => Assert.NotNull(result.RerankScore));
     }
@@ -189,6 +198,7 @@ public sealed class HybridRetrievalSearchServiceTests
 
         Assert.Same(filters, vectorSearch.ReceivedFilters);
         Assert.Same(filters, keywordSearch.ReceivedFilters);
+
         Assert.Equal("semantic late payment", vectorSearch.ReceivedQuery);
         Assert.Equal("\"late payment\" OR overdue", keywordSearch.ReceivedQuery);
     }

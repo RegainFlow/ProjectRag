@@ -6,7 +6,18 @@ public sealed class FakeChatClient : IChatClient
 {
     private readonly string _responseText;
     public FakeChatClient()
-        : this("Late balances may receive a monthly fee after a grace period.")
+        : this("""
+          {
+            "answerStatus": "answered",
+            "answer": "Late balances may receive a monthly fee after a grace period.",
+            "claims": [
+              {
+                "text": "Late balances may receive a monthly fee after a grace period.",
+                "sourceIndexes": [1]
+              }
+            ]
+          }
+          """)
     {
     }
 

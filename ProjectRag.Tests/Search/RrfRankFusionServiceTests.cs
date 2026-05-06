@@ -42,10 +42,12 @@ public sealed class RrfRankFusionServiceTests
         var result = Assert.Single(results);
 
         Assert.Equal(vectorHit.ChunkId, result.ChunkId);
+
         Assert.Equal(1d / 61d, result.RrfScore);
+        Assert.Equal("vector", result.MatchedBy);
+
         Assert.Equal(0.9, result.VectorScore);
         Assert.Null(result.KeywordScore);
-        Assert.Equal("vector", result.MatchedBy);
     }
 
     [Fact]
@@ -64,10 +66,12 @@ public sealed class RrfRankFusionServiceTests
         var result = Assert.Single(results);
 
         Assert.Equal(keywordHit.ChunkId, result.ChunkId);
+
         Assert.Equal(1d / 61d, result.RrfScore);
+        Assert.Equal("keyword", result.MatchedBy);
+
         Assert.Null(result.VectorScore);
         Assert.Equal(12, result.KeywordScore);
-        Assert.Equal("keyword", result.MatchedBy);
     }
 
     [Fact]
@@ -89,10 +93,12 @@ public sealed class RrfRankFusionServiceTests
         var result = Assert.Single(results);
 
         Assert.Equal(chunkId, result.ChunkId);
+
         Assert.Equal((1d / 61d) + (1d / 61d), result.RrfScore);
+        Assert.Equal("hybrid", result.MatchedBy);
+
         Assert.Equal(0.9, result.VectorScore);
         Assert.Equal(12, result.KeywordScore);
-        Assert.Equal("hybrid", result.MatchedBy);
     }
 
     [Fact]

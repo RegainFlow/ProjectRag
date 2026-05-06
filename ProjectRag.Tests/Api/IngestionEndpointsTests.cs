@@ -37,12 +37,13 @@ public sealed class IngestionEndpointsTests : IClassFixture<RagApiFactory>
             var body = await response.Content.ReadFromJsonAsync<IngestionJobResponse>();
 
             Assert.NotNull(body);
+
             Assert.NotEqual(Guid.Empty, body.IngestionId);
             Assert.Equal(filePath, body.SourcePath);
+
             Assert.Equal("Completed", body.Status);
             Assert.NotNull(body.StartedAt);
             Assert.NotNull(body.CompletedAt);
-
         }
         finally
         {
@@ -80,10 +81,11 @@ public sealed class IngestionEndpointsTests : IClassFixture<RagApiFactory>
             var fetched = await getResponse.Content.ReadFromJsonAsync<IngestionJobResponse>();
 
             Assert.NotNull(fetched);
+
             Assert.Equal(created.IngestionId, fetched.IngestionId);
             Assert.Equal(filePath, fetched.SourcePath);
-            Assert.Equal("Completed", fetched.Status);
 
+            Assert.Equal("Completed", fetched.Status);
         }
         finally
         {

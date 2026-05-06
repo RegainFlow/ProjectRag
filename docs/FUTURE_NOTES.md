@@ -46,10 +46,15 @@ This file tracks known improvement ideas that are useful later, but should not d
   - `/ask` currently waits for the full chat response.
   - Streaming would improve perceived latency.
 - Improve citation behavior.
-  - Current citations are chunk-level.
-  - Later phases should attach citations to specific claims.
+  - Current claims cite chunk ids.
+  - Later phases should validate that each claim is actually supported by its cited chunk.
+  - Consider inline citation markers in the answer text after structured claims stabilize.
 - Strengthen refusal behavior.
-  - Keep improving "not enough evidence" handling as the prompt and eval set mature.
+  - Current unsupported answers return `insufficientContext`.
+  - Keep improving unsupported-answer detection as the prompt and eval set mature.
+- Evaluate structured output enforcement.
+  - Current answer parsing depends on prompt-following JSON.
+  - Compare plain prompting with `ChatOptions.ResponseFormat` and provider-specific structured output support.
 - Add cost/token logging.
   - Useful when comparing local, Azure OpenAI, Foundry Local, and other providers.
 

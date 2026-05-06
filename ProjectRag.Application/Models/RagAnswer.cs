@@ -2,5 +2,9 @@
 
 public sealed record RagAnswer(
     string Answer,
+    string AnswerStatus,
     QueryRewrite QueryRewrite,
-    IReadOnlyList<Citation> Citations);
+    IReadOnlyList<AnswerClaim> Claims,
+    IReadOnlyList<Citation> Citations,
+    RetrievalDiagnostics RetrievalDiagnostics,
+    ModelInfo ModelInfo);

@@ -56,7 +56,7 @@ Accept: application/json
   "topK": 3
 }
 
-### Ask text documents with reranked citations
+### Ask text documents with grounded claims and reranked citations
 POST {{baseUrl}}/ask
 Content-Type: application/json
 Accept: application/json

@@ -44,16 +44,29 @@ public sealed class AskEndpointsTests : IClassFixture<RagApiFactory>
             var body = await askResponse.Content.ReadFromJsonAsync<AskResponse>();
 
             Assert.NotNull(body);
+
+            Assert.Equal("answered", body.AnswerStatus);
             Assert.Contains("monthly fee", body.Answer);
+
             Assert.NotNull(body.QueryRewrite);
             Assert.Equal("What are the late payment fees?", body.QueryRewrite.OriginalQuery);
             Assert.Equal("What are the late payment fees?", body.QueryRewrite.SemanticQuery);
             Assert.Equal("What are the late payment fees?", body.QueryRewrite.KeywordQuery);
             Assert.Equal("test-fake", body.QueryRewrite.Status);
+
+            Assert.NotEmpty(body.Claims);
+            Assert.Contains(body.Claims, claim =>
+                claim.Text.Contains("monthly fee")
+                && claim.CitationChunkIds.Count > 0);
+            var claim = body.Claims.First(claim => claim.Text.Contains("monthly fee"));
+            Assert.Contains("monthly fee", claim.Text);
+            Assert.NotEmpty(claim.CitationChunkIds);
+
             Assert.NotEmpty(body.Citations);
 
             var firstCitation = body.Citations[0];
 
+            Assert.Contains(firstCitation.ChunkId, claim.CitationChunkIds);
             Assert.False(string.IsNullOrWhiteSpace(firstCitation.DocumentId));
             Assert.False(string.IsNullOrWhiteSpace(firstCitation.ChunkId));
             Assert.Equal(filePath, firstCitation.SourceUri);
@@ -65,6 +78,14 @@ public sealed class AskEndpointsTests : IClassFixture<RagApiFactory>
             Assert.Equal("keyword", firstCitation.MatchedBy);
             Assert.Null(firstCitation.PageNumber);
             Assert.Equal("Paragraph", firstCitation.Kind);
+
+            Assert.Equal(5, body.RetrievalDiagnostics.RequestedTopK);
+            Assert.True(body.RetrievalDiagnostics.ReturnedContextCount > 0);
+            Assert.True(body.RetrievalDiagnostics.RerankingApplied);
+
+            Assert.Equal("Ollama", body.ModelInfo.ChatProvider);
+            Assert.False(string.IsNullOrWhiteSpace(body.ModelInfo.ChatModel));
+            Assert.False(string.IsNullOrWhiteSpace(body.ModelInfo.EmbeddingModel));
         }
         finally
         {
@@ -98,11 +119,31 @@ public sealed class AskEndpointsTests : IClassFixture<RagApiFactory>
             var body = await askResponse.Content.ReadFromJsonAsync<AskResponse>();
 
             Assert.NotNull(body);
+            Assert.Equal("answered", body.AnswerStatus);
+            Assert.NotEmpty(body.Claims);
+
+            Assert.Equal(5, body.RetrievalDiagnostics.RequestedTopK);
+            Assert.True(body.RetrievalDiagnostics.ReturnedContextCount > 0);
+            Assert.True(body.RetrievalDiagnostics.RerankingApplied);
+
+            Assert.Equal("Ollama", body.ModelInfo.ChatProvider);
+            Assert.False(string.IsNullOrWhiteSpace(body.ModelInfo.ChatModel));
+            Assert.False(string.IsNullOrWhiteSpace(body.ModelInfo.EmbeddingModel));
+
             Assert.Contains(body.Citations, citation =>
                 citation.PageNumber == 1
                 && citation.Kind == "Paragraph"
-                && citation.SectionTitle == "Invoice 1001"
-                && citation.RerankScore is > 0);
+                && citation.SectionTitle == "Invoice 1001");
+
+            var citation = body.Citations.First(citation =>
+                citation.PageNumber == 1
+                && citation.Kind == "Paragraph"
+                && citation.SectionTitle == "Invoice 1001");
+
+            Assert.NotNull(citation.RerankScore);
+            Assert.True(citation.RerankScore > 0);
+            Assert.Contains(body.Claims, claim =>
+                claim.CitationChunkIds.Contains(citation.ChunkId));
         }
         finally
         {

@@ -7,8 +7,26 @@ public sealed record AskRequest(
 
 public sealed record AskResponse(
     string Answer,
+    string AnswerStatus,
     QueryRewriteResponse QueryRewrite,
-    IReadOnlyList<CitationResponse> Citations);
+    IReadOnlyList<ClaimResponse> Claims,
+    IReadOnlyList<CitationResponse> Citations,
+    RetrievalDiagnosticsResponse RetrievalDiagnostics,
+    ModelInfoResponse ModelInfo);
+
+public sealed record ClaimResponse(
+    string Text,
+    IReadOnlyList<string> CitationChunkIds);
+
+public sealed record RetrievalDiagnosticsResponse(
+    int RequestedTopK,
+    int ReturnedContextCount,
+    bool RerankingApplied);
+
+public sealed record ModelInfoResponse(
+    string ChatProvider,
+    string ChatModel,
+    string EmbeddingModel);
 
 public sealed record CitationResponse(
     string DocumentId,

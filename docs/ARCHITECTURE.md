@@ -1,6 +1,6 @@
 # Architecture
 
-ProjectRag is a layered .NET RAG service. The architecture is intentionally conservative: establish clear boundaries, persistence, API contracts, testability, scanned document extraction, persistent search indexing, hybrid retrieval, query rewriting, RRF fusion, and semantic reranking before introducing grounded-answer hardening or agentic orchestration.
+ProjectRag is a layered .NET RAG service. The architecture is intentionally conservative: establish clear boundaries, persistence, API contracts, testability, scanned document extraction, persistent search indexing, hybrid retrieval, query rewriting, RRF fusion, semantic reranking, and grounded answer generation before introducing evaluation or agentic orchestration.
 
 ## Layers
 
@@ -31,6 +31,7 @@ ProjectRag.Infrastructure
   LLM query rewriting
   Reciprocal Rank Fusion
   Local LLM reranking
+  Grounded answer generation
   Hybrid keyword/vector retrieval
 
 ProjectRag.Application
@@ -193,9 +194,11 @@ Implemented behavior:
 - `GET /api/v1/ingestions/{id}` returns a persisted ingestion job.
 - `GET /api/v1/documents` reads documents from SQLite.
 - `POST /api/v1/search` rewrites the query, runs Elasticsearch keyword search and Elasticsearch vector search, fuses candidates with RRF, reranks the fused candidates with a local LLM, and returns ranked hits with retrieval diagnostics.
-- `POST /api/v1/ask` rewrites the question, retrieves top chunks, builds a grounded prompt, calls the chat model, and returns an answer with citations.
+- `POST /api/v1/ask` rewrites the question, retrieves top chunks, builds a strict grounded prompt, calls the chat model, and returns answer status, structured claims, citations, retrieval diagnostics, and model info.
 
 Chunk embeddings are generated once during ingestion and stored in Elasticsearch with chunk text and metadata. Search rewrites the original user query into a semantic query for vector retrieval and a keyword query for full-text retrieval. It embeds only the semantic query, runs keyword and vector retrieval independently, deduplicates candidates by chunk id, fuses the ranked lists with Reciprocal Rank Fusion, and reranks the fused candidate set. `RrfScore` is the fusion score, `RerankScore` is the second-stage relevance score, and `VectorScore` plus `KeywordScore` are raw provider scores for diagnostics.
+
+Answer generation uses the reranked chunks as context. The answer model must return structured JSON with `answerStatus`, `answer`, and cited `claims`. Claim source indexes are mapped back to citation chunk ids at the application layer. If there are no retrieved chunks, invalid answer JSON, or answered claims without citations, the answer service returns `insufficientContext`.
 
 Text and markdown files use paragraph-based fixed-size chunking. Scanned documents use Azure AI Document Intelligence `prebuilt-layout`, then a layout-aware rule-based chunking strategy:
 
@@ -253,9 +256,9 @@ sequenceDiagram
     API->>ES: Hybrid retrieval
     API->>RRF: Fuse ranked lists
     API->>Rerank: Rerank fused candidates
-    API->>Chat: Grounded prompt with top chunks
-    Chat-->>API: Answer text
-    API-->>Client: AskResponse with citations
+    API->>Chat: Strict grounded prompt with reranked chunks
+    Chat-->>API: Structured answer JSON
+    API-->>Client: AskResponse with status, claims, citations, diagnostics, model info
 ```
 
 ## Testing Strategy
@@ -273,6 +276,7 @@ Current integration tests use:
 - fake reranker service for API tests
 - direct tests for RRF rank fusion
 - direct tests for LLM reranking fallback and scoring
+- direct tests for grounded answer parsing, refusal behavior, diagnostics, and model info
 - direct tests for layout block normalization
 
 This verifies API + DI + EF Core + extraction/ingestion + retrieval/answer behavior without mutating the developer's local SQLite file and without requiring Ollama, Azure, or Elasticsearch during normal tests. Elasticsearch behavior is currently covered by manual local smoke testing.
@@ -285,6 +289,6 @@ This verifies API + DI + EF Core + extraction/ingestion + retrieval/answer behav
 - Query rewriting and LLM reranking use a local chat model and can add noticeable latency.
 - Elasticsearch integration is manually smoke-tested, not part of the default automated test suite.
 - Changed-file reingestion has a skipped regression test pending a focused EF tracking design pass.
-- `/ask` is grounded by prompt instruction and citations, but claim-level citation validation is not implemented.
+- `/ask` uses structured claim citations, but claim-level factual correctness is not automatically verified yet.
 - The current reranker is educational and prompt-driven. Provider-native reranking, structured output enforcement, and local ONNX cross-encoders are future improvements.
 - Agentic behavior is a later phase.

@@ -2,7 +2,7 @@
 
 ProjectRag is a learning-first .NET RAG service. The project is being built in phases so each layer introduces one production retrieval-augmented generation capability at a time.
 
-Current status: Phase 7 semantic reranking is implemented. The API can ingest local text/markdown files plus scanned PDFs/images with Azure AI Document Intelligence, persist layout-aware chunks in SQLite, index chunk text and embeddings into Elasticsearch, rewrite user questions into semantic and keyword search queries, fuse keyword/vector results with Reciprocal Rank Fusion, rerank fused candidates with a local LLM, and generate grounded answers with citations.
+Current status: Phase 8 grounded answer generation is implemented. The API can ingest local text/markdown files plus scanned PDFs/images with Azure AI Document Intelligence, persist layout-aware chunks in SQLite, index chunk text and embeddings into Elasticsearch, rewrite user questions into semantic and keyword search queries, fuse keyword/vector results with Reciprocal Rank Fusion, rerank fused candidates with a local LLM, and generate grounded answers with structured claims, citations, refusal status, retrieval diagnostics, and model info.
 
 ## Phase Roadmap
 
@@ -14,7 +14,8 @@ Current status: Phase 7 semantic reranking is implemented. The API can ingest lo
 6. Phase 5: LLM-powered query rewriting before retrieval.
 7. Phase 6: Reciprocal Rank Fusion for keyword/vector result fusion.
 8. Phase 7: Local LLM semantic reranking after RRF.
-9. Phase 8+: Stricter grounded answers, evaluation, and agentic RAG.
+9. Phase 8: Stricter grounded answers with structured claims, refusal status, diagnostics, and model info.
+10. Phase 9+: Evaluation harness, agentic RAG, and enterprise hardening.
 
 ## Solution Layout
 
@@ -48,7 +49,7 @@ POST /search
 POST /ask
 ```
 
-`/search` rewrites the original query into semantic and keyword search queries, runs Elasticsearch vector search plus keyword/BM25 search, fuses candidates with Reciprocal Rank Fusion, then reranks the fused candidates with the configured local chat model. `/ask` uses the same rewritten hybrid retrieval path, builds a grounded prompt, calls the configured chat model, and returns citations. Responses include query rewrite and retrieval diagnostics, including `rrfScore`, `rerankScore`, raw vector score, raw keyword score, and match source. Scanned document citations can include page and section metadata.
+`/search` rewrites the original query into semantic and keyword search queries, runs Elasticsearch vector search plus keyword/BM25 search, fuses candidates with Reciprocal Rank Fusion, then reranks the fused candidates with the configured local chat model. `/ask` uses the same rewritten hybrid retrieval path, builds a stricter grounded prompt, calls the configured chat model, and returns an answer status, structured claims, citations, retrieval diagnostics, and model info. Responses include query rewrite and retrieval diagnostics, including `rrfScore`, `rerankScore`, raw vector score, raw keyword score, and match source. Scanned document citations can include page and section metadata.
 
 ## Prerequisites
 
@@ -142,7 +143,7 @@ Then search. The response includes `queryRewrite` diagnostics:
 }
 ```
 
-Then ask. The response includes the same rewrite diagnostics plus citations:
+Then ask. The response includes the same rewrite diagnostics plus answer status, structured claims, citations, retrieval diagnostics, and model info:
 
 ```json
 {
@@ -233,6 +234,19 @@ Content hashing prevents unchanged source files from being re-extracted and re-c
 The current RRF formula is `score = sum(1 / (60 + rank))`, where rank starts at 1 in each result list. RRF is implemented in application code through `IRankFusionService` rather than Elasticsearch native RRF so the fusion behavior stays provider-neutral and visible for learning.
 
 The current reranker is implemented through `IRerankerService` using the local `IChatClient`. This is useful for learning the broad-recall then precision-rerank pattern, but it is slower than a dedicated reranker model or provider-native reranking.
+
+## Grounded Answers
+
+Phase 8 makes `/ask` stricter and more auditable. The answer model is asked to return JSON with an `answerStatus`, answer text, and structured claims. Each claim references citation chunk ids through source indexes from the retrieved context. If retrieval returns no context or the model response cannot be parsed into cited claims, `/ask` returns `answerStatus: "insufficientContext"` instead of an uncited answer.
+
+The `/ask` response includes:
+
+- `answer`: final answer or refusal text.
+- `answerStatus`: `answered` or `insufficientContext`.
+- `claims`: claim text plus citation chunk ids.
+- `citations`: chunk-level source metadata and retrieval scores.
+- `retrievalDiagnostics`: requested top K, returned context count, and whether reranking was applied.
+- `modelInfo`: chat provider, chat model, and embedding model.
 
 ## References
 

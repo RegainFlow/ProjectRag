@@ -36,6 +36,7 @@ public sealed class LlmRerankerServiceTests
 
         Assert.Equal(second.ChunkId, results[0].ChunkId);
         Assert.Equal(0.95, results[0].RerankScore);
+
         Assert.Equal(first.ChunkId, results[1].ChunkId);
         Assert.Equal(0.10, results[1].RerankScore);
     }
@@ -60,6 +61,7 @@ public sealed class LlmRerankerServiceTests
 
         Assert.Equal(first.ChunkId, results[0].ChunkId);
         Assert.Equal(second.ChunkId, results[1].ChunkId);
+
         Assert.All(results, result => Assert.Null(result.RerankScore));
     }
 

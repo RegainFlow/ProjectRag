@@ -177,11 +177,16 @@ internal static class RagEndpoints
 
             var response = new AskResponse(
                 answer.Answer,
+                answer.AnswerStatus,
                 new QueryRewriteResponse(
                     answer.QueryRewrite.OriginalQuery,
                     answer.QueryRewrite.SemanticQuery,
                     answer.QueryRewrite.KeywordQuery,
                     answer.QueryRewrite.Status),
+                answer.Claims.Select(x => new ClaimResponse(
+                    x.Text,
+                    x.CitationChunkIds.Select(id => id.ToString()).ToList()
+                    )).ToList(),
                 answer.Citations.Select(x => new CitationResponse(
                     x.DocumentId.ToString(),
                     x.ChunkId.ToString(),
@@ -193,7 +198,15 @@ internal static class RagEndpoints
                     x.KeywordScore,
                     x.MatchedBy,
                     x.Kind.ToString(),
-                    x.SectionTitle)).ToList());
+                    x.SectionTitle)).ToList(),
+                new RetrievalDiagnosticsResponse(
+                    answer.RetrievalDiagnostics.RequestedTopK,
+                    answer.RetrievalDiagnostics.ReturnedContextCount,
+                    answer.RetrievalDiagnostics.RerankingApplied),
+                new ModelInfoResponse(
+                    answer.ModelInfo.ChatProvider,
+                    answer.ModelInfo.ChatModel,
+                    answer.ModelInfo.EmbeddingModel));
 
             return Results.Ok(response);
         });
