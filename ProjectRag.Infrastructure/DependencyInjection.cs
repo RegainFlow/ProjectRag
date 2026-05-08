@@ -59,9 +59,13 @@ public static class DependencyInjection
                 Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds)
             };
 
-            return new OllamaApiClient(
-                httpClient,
-                options.EmbeddingModel);
+            return new EmbeddingGeneratorBuilder<string, Embedding<float>>(
+                    new OllamaApiClient(httpClient, options.EmbeddingModel))
+                .UseOpenTelemetry(configure: o =>
+                {
+                    o.EnableSensitiveData = true;
+                })
+                .Build();
         });
 
         services.AddSingleton<IChatClient>(serviceProvider =>
@@ -74,9 +78,13 @@ public static class DependencyInjection
                 Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds)
             };
 
-            return new OllamaApiClient(
-                httpClient,
-                options.ChatModel);
+            return new ChatClientBuilder(
+                    new OllamaApiClient(httpClient, options.ChatModel))
+                .UseOpenTelemetry(configure: o =>
+                {
+                    o.EnableSensitiveData = true;
+                })
+                .Build();
         });
 
         return services;

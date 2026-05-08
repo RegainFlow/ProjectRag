@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using ProjectRag.Application.Abstractions;
 using ProjectRag.Application.Models;
 using ProjectRag.Infrastructure.Options;
+using ProjectRag.Application.Telemetry;
 using System.Text;
 using System.Text.Json;
 
@@ -23,22 +24,40 @@ internal sealed class LlmRerankerService : IRerankerService
 
     public async Task<IReadOnlyList<SearchHit>> RerankAsync(RetrievalQuery query, IReadOnlyList<SearchHit> candidates, int topK, CancellationToken cancellationToken)
     {
+        using var activity = ProjectRagTelemetry.ActivitySource.StartActivity("rag.rerank");
+        activity?.SetTag("rag.query.length", query.OriginalQuery.Length);
+        activity?.SetTag("rag.candidates.count", candidates.Count);
+        activity?.SetTag("rag.top_k", topK);
+
         if (candidates.Count == 0)
         {
+            activity?.SetTag("rag.results.count", 0);
             return [];
         }
 
         topK = Math.Clamp(topK, 1, _retrievalOptions.MaxTopK);
+        activity?.SetTag("rag.top_k.effective", topK);
 
         try
         {
             var response = await _chatClient.GetResponseAsync(BuildPrompt(query, candidates), cancellationToken: cancellationToken);
 
-            return ApplyScores(candidates, response.Text, topK);
+            var results = ApplyScores(candidates, response.Text, topK);
+
+            activity?.SetTag("rag.results.count", results.Count);
+            activity?.SetTag("rag.rerank.fallback", false);
+
+            return results;
         }
-        catch
+        catch (Exception ex)
         {
-            return candidates.Take(topK).ToList();
+            var fallbackResults = candidates.Take(topK).ToList();
+
+            activity?.SetTag("rag.results.count", fallbackResults.Count);
+            activity?.SetTag("rag.rerank.fallback", true);
+            activity?.SetTag("rag.error.type", ex.GetType().Name);
+
+            return fallbackResults;
         }
     }
 

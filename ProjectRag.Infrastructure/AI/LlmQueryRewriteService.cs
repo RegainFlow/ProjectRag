@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.AI;
 using ProjectRag.Application.Abstractions;
 using ProjectRag.Application.Models;
+using ProjectRag.Application.Telemetry;
 using System.Text.Json;
 
 namespace ProjectRag.Infrastructure.AI;
@@ -16,8 +17,12 @@ internal sealed class LlmQueryRewriteService : IQueryRewriteService
 
     public async Task<QueryRewrite> RewriteAsync(string query, CancellationToken cancellationToken)
     {
+        using var activity = ProjectRagTelemetry.ActivitySource.StartActivity("rag.query_rewrite");
+        activity?.SetTag("rag.query.length", query.Length);
+
         if (string.IsNullOrWhiteSpace(query))
         {
+            activity?.SetTag("rag.query_rewrite.status", "fallback");
             return Fallback(query);
         }
 
@@ -27,10 +32,18 @@ internal sealed class LlmQueryRewriteService : IQueryRewriteService
                 BuildPrompt(query),
                 cancellationToken: cancellationToken);
 
-            return ParseRewrite(query, response.Text);
+            var rewrite = ParseRewrite(query, response.Text);
+
+            activity?.SetTag("rag.query_rewrite.status", rewrite.Status);
+            activity?.SetTag("rag.semantic_query.length", rewrite.SemanticQuery.Length);
+            activity?.SetTag("rag.keyword_query.length", rewrite.KeywordQuery.Length);
+
+            return rewrite;
         }
-        catch
+        catch (Exception ex)
         {
+            activity?.SetTag("rag.query_rewrite.status", "fallback");
+            activity?.SetTag("rag.error.type", ex.GetType().Name);
             return Fallback(query);
         }
     }

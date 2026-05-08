@@ -1,0 +1,84 @@
+[
+  {
+    "id": "late-payment-fees",
+    "question": "What are the late payment fees?",
+    "expectedSourceContains": "late-payment-policy.md",
+    "expectedAnswerContains": [
+      "1.5 percent",
+      "10 day grace period"
+    ],
+    "expectedAnswerStatus": "answered"
+  },
+  {
+    "id": "collections-escalation",
+    "question": "When does collections escalation begin?",
+    "expectedSourceContains": "late-payment-policy.md",
+    "expectedAnswerContains": [
+      "45 days"
+    ],
+    "expectedAnswerStatus": "answered"
+  },
+  {
+    "id": "unsupported-parental-leave",
+    "question": "What is the company policy for paid parental leave?",
+    "expectedSourceContains": null,
+    "expectedAnswerContains": [],
+    "expectedAnswerStatus": "insufficientContext"
+  },
+  {
+    "id": "late-payment-definition",
+    "question": "When is a payment considered late?",
+    "expectedSourceContains": "late-payment-policy.md",
+    "expectedAnswerContains": [
+      "due date"
+    ],
+    "expectedAnswerStatus": "answered"
+  },
+  {
+    "id": "late-payment-prepaid-billing",
+    "question": "When can customers be moved to prepaid billing?",
+    "expectedSourceContains": "late-payment-policy.md",
+    "expectedAnswerContains": [
+      "two or more late payments",
+      "six month"
+    ],
+    "expectedAnswerStatus": "answered"
+  },
+  {
+    "id": "late-payment-waiver",
+    "question": "When may late fees be waived?",
+    "expectedSourceContains": "late-payment-policy.md",
+    "expectedAnswerContains": [
+      "billing error",
+      "duplicate invoice"
+    ],
+    "expectedAnswerStatus": "answered"
+  },
+  {
+    "id": "late-payment-legal-escalation",
+    "question": "Who must approve legal escalation for late payments?",
+    "expectedSourceContains": "late-payment-policy.md",
+    "expectedAnswerContains": [
+      "finance director"
+    ],
+    "expectedAnswerStatus": "answered"
+  },
+  {
+    "id": "refund-window",
+    "question": "How long do customers have to request a refund?",
+    "expectedSourceContains": "refund-policy.md",
+    "expectedAnswerContains": [
+      "30 days"
+    ],
+    "expectedAnswerStatus": "answered"
+  },
+  {
+    "id": "refund-large-approval",
+    "question": "Who approves refunds greater than 5,000 dollars?",
+    "expectedSourceContains": "refund-policy.md",
+    "expectedAnswerContains": [
+      "finance director"
+    ],
+    "expectedAnswerStatus": "answered"
+  }
+]

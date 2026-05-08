@@ -10,8 +10,9 @@ This file tracks known improvement ideas that are useful later, but should not d
 - Add bulk indexing for Elasticsearch.
   - Current indexing is chunk-by-chunk.
   - Bulk indexing should reduce ingestion latency and partial-failure noise.
-- Add ingestion observability.
-  - Track document count, chunk count, extraction time, embedding time, indexing time, and failures.
+- Improve ingestion observability.
+  - Current spans track ingestion and file-level work.
+  - Later, split document count, chunk count, extraction time, embedding time, indexing time, and failures into clearer stage spans or metrics.
 - Add dead-letter handling.
   - Failed files should be recorded and retryable without rerunning the whole source folder.
 - Keep content hashing.
@@ -87,8 +88,8 @@ This file tracks known improvement ideas that are useful later, but should not d
 
 ## Evaluation Harness
 
-- Build the eval harness before major provider/chunking experiments.
-  - It will make model, retrieval, and chunking changes measurable instead of subjective.
+- Expand the eval harness before major provider/chunking experiments.
+  - The initial deterministic harness exists; keep broadening it so model, retrieval, and chunking changes stay measurable instead of subjective.
 - Track at minimum:
   - retrieval hit rate
   - expected-source match
@@ -98,10 +99,24 @@ This file tracks known improvement ideas that are useful later, but should not d
   - model/provider used
 - Keep a small hand-written golden set first.
   - Start with sample docs, then add scanned-document cases.
+- Add Microsoft.Extensions.AI evaluation as a second layer.
+  - Keep deterministic source-hit tests as the default regression signal.
+  - Add optional quality evals for groundedness, relevance, completeness, equivalence, and reporting.
+
+## Observability
+
+- Keep Aspire Dashboard as the default local OTLP viewer.
+  - A full Aspire AppHost can be considered later if the project grows into multiple always-running services.
+- Add OpenTelemetry metrics after traces stabilize.
+  - Useful metrics include request latency, retrieval latency by stage, retrieved candidate counts, rerank fallback count, ingestion file count, and ingestion failure count.
+- Keep sensitive telemetry disabled by default.
+  - Prompt and response capture should remain local-only and deliberate.
 
 ## References
 
 - Foundry Local documentation: https://learn.microsoft.com/en-us/azure/foundry-local/
 - Foundry Local quickstart: https://learn.microsoft.com/en-us/azure/ai-foundry/foundry-local/get-started
 - Microsoft Foundry RAG evaluators: https://learn.microsoft.com/en-us/azure/foundry/concepts/evaluation-evaluators/rag-evaluators
+- Microsoft.Extensions.AI evaluation libraries: https://learn.microsoft.com/en-us/dotnet/ai/evaluation/libraries
+- Aspire Dashboard standalone: https://aspire.dev/dashboard/standalone/
 - .NET vector stores: https://learn.microsoft.com/en-us/dotnet/ai/vector-stores/how-to/use-vector-stores

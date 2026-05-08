@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Options;
 using ProjectRag.Application.Abstractions;
 using ProjectRag.Application.Models;
+using ProjectRag.Application.Telemetry;
 using ProjectRag.Domain.Enums;
 using ProjectRag.Infrastructure.Options;
 
@@ -22,12 +23,19 @@ internal sealed class ElasticKeywordSearchService : IKeywordSearchService
 
     public async Task<IReadOnlyList<SearchHit>> SearchAsync(string query, int topK, SearchFilters? filters, CancellationToken cancellationToken)
     {
+        using var activity = ProjectRagTelemetry.ActivitySource.StartActivity("rag.search.keyword");
+        activity?.SetTag("rag.query.length", query.Length);
+        activity?.SetTag("rag.top_k", topK);
+        activity?.SetTag("rag.filters.source_type", filters?.SourceType);
+
         if (string.IsNullOrWhiteSpace(query))
         {
+            activity?.SetTag("rag.results.count", 0);
             return [];
         }
 
         topK = Math.Clamp(topK, 1, 20);
+        activity?.SetTag("rag.top_k.effective", topK);
 
         var filterQueries = ElasticSearchFilterBuilder.Build(filters);
 
@@ -54,7 +62,7 @@ internal sealed class ElasticKeywordSearchService : IKeywordSearchService
             throw new InvalidOperationException("Elasticsearch keyword search failed.");
         }
 
-        return response.Hits
+        var results = response.Hits
             .Where(hit => hit.Source is not null)
             .Select(hit =>
             {
@@ -73,5 +81,9 @@ internal sealed class ElasticKeywordSearchService : IKeywordSearchService
                     MatchedBy: "keyword");
             })
             .ToList();
+
+        activity?.SetTag("rag.results.count", results.Count);
+
+        return results;
     }
 }

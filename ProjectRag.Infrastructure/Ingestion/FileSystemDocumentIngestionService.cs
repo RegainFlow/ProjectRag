@@ -3,6 +3,7 @@ using ProjectRag.Application.Abstractions;
 using ProjectRag.Application.Models;
 using ProjectRag.Domain.Entities;
 using ProjectRag.Domain.Enums;
+using ProjectRag.Application.Telemetry;
 using System.Security.Cryptography;
 using System.Text.Json;
 
@@ -33,7 +34,12 @@ internal sealed class FileSystemDocumentIngestionService : ITextDocumentIngestio
 
     public async Task IngestPathAsync(string sourcePath, CancellationToken cancellationToken)
     {
+        using var activity = ProjectRagTelemetry.ActivitySource.StartActivity("rag.ingestion");
+        activity?.SetTag("rag.source_path.exists_file", File.Exists(sourcePath));
+        activity?.SetTag("rag.source_path.exists_directory", Directory.Exists(sourcePath));
+
         var files = ResolveFiles(sourcePath);
+        activity?.SetTag("rag.files.count", files.Count);
 
         foreach (var file in files)
         {
@@ -43,6 +49,9 @@ internal sealed class FileSystemDocumentIngestionService : ITextDocumentIngestio
 
     private async Task IngestFileAsync(string filePath, CancellationToken cancellationToken)
     {
+        using var activity = ProjectRagTelemetry.ActivitySource.StartActivity("rag.ingestion.file");
+        activity?.SetTag("rag.source_type", Path.GetExtension(filePath).TrimStart('.').ToLowerInvariant());
+
         var contentHash = await ComputeFileHashAsync(filePath, cancellationToken);
         var extension = Path.GetExtension(filePath);
 
@@ -58,14 +67,20 @@ internal sealed class FileSystemDocumentIngestionService : ITextDocumentIngestio
 
             if (hasIndexedChunks)
             {
+                activity?.SetTag("rag.ingestion.skipped", true);
+                activity?.SetTag("rag.ingestion.skip_reason", "unchanged");
                 return;
             }
 
             await _db.Entry(existing).Collection(x => x.Chunks).LoadAsync(cancellationToken);
 
             await IndexDocumentChunksAsync(existing, cancellationToken); // reindex existing document that is missing search index records
+            activity?.SetTag("rag.ingestion.reindexed_existing", true);
             return;
         }
+
+        activity?.SetTag("rag.ingestion.skipped", false);
+        activity?.SetTag("rag.ingestion.is_reingestion", existing is not null);
 
         // ingest new document or reingest changed document
         Document document;
@@ -111,6 +126,8 @@ internal sealed class FileSystemDocumentIngestionService : ITextDocumentIngestio
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+        activity?.SetTag("rag.chunks.count", document.Chunks.Count);
+
         await IndexDocumentChunksAsync(document, cancellationToken);
     }
 

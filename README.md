@@ -2,7 +2,7 @@
 
 ProjectRag is a learning-first .NET RAG service. The project is being built in phases so each layer introduces one production retrieval-augmented generation capability at a time.
 
-Current status: Phase 8 grounded answer generation is implemented. The API can ingest local text/markdown files plus scanned PDFs/images with Azure AI Document Intelligence, persist layout-aware chunks in SQLite, index chunk text and embeddings into Elasticsearch, rewrite user questions into semantic and keyword search queries, fuse keyword/vector results with Reciprocal Rank Fusion, rerank fused candidates with a local LLM, and generate grounded answers with structured claims, citations, refusal status, retrieval diagnostics, and model info.
+Current status: Phase 9 evaluation and observability is in progress. The API can ingest local text/markdown files plus scanned PDFs/images with Azure AI Document Intelligence, persist layout-aware chunks in SQLite, index chunk text and embeddings into Elasticsearch, rewrite user questions into semantic and keyword search queries, fuse keyword/vector results with Reciprocal Rank Fusion, rerank fused candidates with a local LLM, generate grounded answers with structured claims/citations/refusal status, run a deterministic eval harness, and emit OpenTelemetry traces for RAG pipeline stages.
 
 ## Phase Roadmap
 
@@ -15,7 +15,8 @@ Current status: Phase 8 grounded answer generation is implemented. The API can i
 7. Phase 6: Reciprocal Rank Fusion for keyword/vector result fusion.
 8. Phase 7: Local LLM semantic reranking after RRF.
 9. Phase 8: Stricter grounded answers with structured claims, refusal status, diagnostics, and model info.
-10. Phase 9+: Evaluation harness, agentic RAG, and enterprise hardening.
+10. Phase 9: Evaluation harness and OpenTelemetry observability.
+11. Phase 10+: Agentic RAG and enterprise hardening.
 
 ## Solution Layout
 
@@ -103,6 +104,12 @@ Run tests:
 
 ```bash
 dotnet test ProjectRag.Tests/ProjectRag.Tests.csproj
+```
+
+The evaluation harness runs as part of the test project. It uses `ProjectRag.Tests/Evaluation/evalset.json` to check retrieval source hits, answer status correctness, calculated citation correctness, and latency. xUnit captures eval summaries in the individual test output; use detailed console logging if you want to inspect it from the CLI:
+
+```bash
+dotnet test ProjectRag.Tests/ProjectRag.Tests.csproj --logger "console;verbosity=detailed"
 ```
 
 Apply local SQLite migrations:
@@ -196,6 +203,18 @@ Elasticsearch stores the active search index:
 }
 ```
 
+OpenTelemetry can export local traces to the standalone Aspire Dashboard:
+
+```json
+"OpenTelemetry": {
+  "ServiceName": "ProjectRag.Api",
+  "OtlpEndpoint": "http://localhost:4317",
+  "EnableConsoleExporter": false
+}
+```
+
+Aspire setup is documented in `docs/ASPIRE_DASHBOARD.md`.
+
 Azure AI Document Intelligence uses local secrets for real credentials:
 
 ```json
@@ -248,6 +267,12 @@ The `/ask` response includes:
 - `retrievalDiagnostics`: requested top K, returned context count, and whether reranking was applied.
 - `modelInfo`: chat provider, chat model, and embedding model.
 
+## Evaluation And Observability
+
+Phase 9 adds a lightweight eval harness plus OpenTelemetry instrumentation before agentic behavior. The eval harness is deterministic by default: it verifies that expected sources are retrieved, records answer status correctness, calculates citation correctness, and tracks latency. Microsoft.Extensions.AI evaluation packages are planned as a later quality-evaluation layer for groundedness, relevance, completeness, equivalence, and reporting.
+
+OpenTelemetry is configured in the API and uses a shared `ProjectRag` `ActivitySource`. `/search`, `/ask`, query rewriting, hybrid retrieval, vector search, keyword search, RRF fusion, reranking, answer generation, and ingestion emit custom spans. Ollama chat and embedding calls are wrapped with Microsoft.Extensions.AI OpenTelemetry support where available.
+
 ## References
 
 - ASP.NET Core Minimal APIs: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/minimal-apis
@@ -261,6 +286,9 @@ The `/ask` response includes:
 - Elastic .NET client: https://www.elastic.co/docs/reference/elasticsearch/clients/dotnet/installation
 - Elasticsearch RRF retriever: https://www.elastic.co/docs/reference/elasticsearch/rest-apis/retrievers/rrf-retriever
 - Microsoft.Extensions.AI ChatOptions response format: https://learn.microsoft.com/en-us/dotnet/api/microsoft.extensions.ai.chatoptions.responseformat
+- Microsoft.Extensions.AI evaluation libraries: https://learn.microsoft.com/en-us/dotnet/ai/evaluation/libraries
+- Microsoft.Extensions.AI OpenTelemetry chat wrapper: https://learn.microsoft.com/en-us/dotnet/api/microsoft.extensions.ai.opentelemetrychatclientbuilderextensions.useopentelemetry
+- Aspire Dashboard standalone: https://aspire.dev/dashboard/standalone/
 - Ollama structured outputs: https://docs.ollama.com/capabilities/structured-outputs
 - Ollama embeddings: https://docs.ollama.com/capabilities/embeddings
 - Azure AI Document Intelligence layout model: https://learn.microsoft.com/azure/ai-services/document-intelligence/prebuilt/layout

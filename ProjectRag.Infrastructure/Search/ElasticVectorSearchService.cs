@@ -4,6 +4,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
 using ProjectRag.Application.Abstractions;
 using ProjectRag.Application.Models;
+using ProjectRag.Application.Telemetry;
 using ProjectRag.Domain.Enums;
 using ProjectRag.Infrastructure.Options;
 
@@ -30,12 +31,20 @@ internal sealed class ElasticVectorSearchService : IVectorSearchService
 
     public async Task<IReadOnlyList<SearchHit>> SearchAsync(string query, int topK, SearchFilters? filters, CancellationToken cancellationToken)
     {
+        using var activity = ProjectRagTelemetry.ActivitySource.StartActivity("rag.search.vector");
+        activity?.SetTag("rag.query.length", query.Length);
+        activity?.SetTag("rag.top_k", topK);
+        activity?.SetTag("rag.filters.source_type", filters?.SourceType);
+        activity?.SetTag("rag.embedding.model", _aiOptions.EmbeddingModel);
+
         if (string.IsNullOrWhiteSpace(query))
         {
+            activity?.SetTag("rag.results.count", 0);
             return [];
         }
 
         topK = Math.Clamp(topK, 1, 20);
+        activity?.SetTag("rag.top_k.effective", topK);
 
         var queryEmbedding = await _embeddingGenerator.GenerateVectorAsync(query, cancellationToken: cancellationToken);
 
@@ -64,7 +73,7 @@ internal sealed class ElasticVectorSearchService : IVectorSearchService
             throw new InvalidOperationException("Elasticsearch vector search failed.");
         }
 
-        return response.Hits
+        var results = response.Hits
             .Where(hit => hit.Source is not null)
             .Select(hit =>
             {
@@ -83,5 +92,9 @@ internal sealed class ElasticVectorSearchService : IVectorSearchService
                     MatchedBy: "vector");
             })
             .ToList();
+
+        activity?.SetTag("rag.results.count", results.Count);
+
+        return results;
     }
 }

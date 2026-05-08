@@ -1,5 +1,6 @@
 ﻿using ProjectRag.Application.Abstractions;
 using ProjectRag.Application.Models;
+using ProjectRag.Application.Telemetry;
 
 namespace ProjectRag.Infrastructure.Search;
 
@@ -8,7 +9,14 @@ internal sealed class RrfRankFusionService : IRankFusionService
     private const int RrfConstant = 60;
     public Task<IReadOnlyList<SearchHit>> FuseAsync(IReadOnlyList<SearchHit> vectorResults, IReadOnlyList<SearchHit> keywordResults, int topK, CancellationToken cancellationToken)
     {
+        using var activity = ProjectRagTelemetry.ActivitySource.StartActivity("rag.rank_fusion.rrf");
+        activity?.SetTag("rag.vector_results.count", vectorResults.Count);
+        activity?.SetTag("rag.keyword_results.count", keywordResults.Count);
+        activity?.SetTag("rag.top_k", topK);
+        activity?.SetTag("rag.rrf.k", RrfConstant);
+
         topK = Math.Clamp(topK, 1, 20);
+        activity?.SetTag("rag.top_k.effective", topK);
 
         var candidates = new Dictionary<Guid, FusionCandidate>();
 
@@ -31,6 +39,8 @@ internal sealed class RrfRankFusionService : IRankFusionService
             .OrderByDescending(x => x.RrfScore)
             .Take(topK)
             .ToList();
+
+        activity?.SetTag("rag.results.count", results.Count);
 
         return Task.FromResult(results as IReadOnlyList<SearchHit>);
     }

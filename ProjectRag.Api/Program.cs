@@ -1,4 +1,5 @@
 using ProjectRag.Api.Endpoints;
+using ProjectRag.Api.Telemetry;
 using ProjectRag.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -6,6 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+builder.Services.AddProjectRagOpenTelemetry(builder.Configuration);
 builder.Services.AddInfrastructure(builder.Configuration);
 
 var app = builder.Build();

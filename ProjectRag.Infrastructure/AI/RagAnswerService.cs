@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Options;
 using ProjectRag.Application.Abstractions;
 using ProjectRag.Application.Models;
+using ProjectRag.Application.Telemetry;
 using ProjectRag.Infrastructure.Options;
 using System.Text.Json;
 
@@ -31,10 +32,18 @@ internal sealed class RagAnswerService : IRagAnswerService
         SearchFilters? filters,
         CancellationToken cancellationToken)
     {
+        using var activity = ProjectRagTelemetry.ActivitySource.StartActivity("rag.answer");
+        activity?.SetTag("rag.question.length", question.Length);
+        activity?.SetTag("rag.top_k", topK);
+        activity?.SetTag("rag.filters.source_type", filters?.SourceType);
+
         var queryRewrite = await _queryRewriteService.RewriteAsync(question, cancellationToken);
 
         if (string.IsNullOrWhiteSpace(question))
         {
+            activity?.SetTag("rag.answer.status", "insufficientContext");
+            activity?.SetTag("rag.context.count", 0);
+
             return new RagAnswer(
                 Answer: "Please provide a question",
                 AnswerStatus: "insufficientContext",
@@ -59,8 +68,11 @@ internal sealed class RagAnswerService : IRagAnswerService
             filters,
             cancellationToken);
 
+        activity?.SetTag("rag.context.count", hits.Count);
+
         if (hits.Count == 0)
         {
+            activity?.SetTag("rag.answer.status", "insufficientContext");
             return new RagAnswer(
                 Answer: "I do not have enough information in the available documents to answer that question.",
                 AnswerStatus: "insufficientContext",
@@ -109,9 +121,16 @@ internal sealed class RagAnswerService : IRagAnswerService
             {{question}}
             """;
 
+        using var generationActivity = ProjectRagTelemetry.ActivitySource.StartActivity("rag.answer_generation");
+        generationActivity?.SetTag("rag.context.count", hits.Count);
+        generationActivity?.SetTag("rag.prompt.length", prompt.Length);
+
         var response = await _chatClient.GetResponseAsync(prompt, cancellationToken: cancellationToken);
 
         var parsedAnswer = ParseAnswerResponse(response.Text, hits);
+
+        generationActivity?.SetTag("rag.answer.status", parsedAnswer.AnswerStatus);
+        generationActivity?.SetTag("rag.claims.count", parsedAnswer.Claims.Count);
 
         var citations = hits
             .Select(hit => new Citation(
@@ -128,6 +147,10 @@ internal sealed class RagAnswerService : IRagAnswerService
                 hit.SectionTitle
                 ))
             .ToList();
+
+        activity?.SetTag("rag.answer.status", parsedAnswer.AnswerStatus);
+        activity?.SetTag("rag.claims.count", parsedAnswer.Claims.Count);
+        activity?.SetTag("rag.citations.count", citations.Count);
 
         return new RagAnswer(
             Answer: parsedAnswer.Answer,

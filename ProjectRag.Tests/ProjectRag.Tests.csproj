@@ -23,6 +23,12 @@
     <ProjectReference Include="..\ProjectRag.Infrastructure\ProjectRag.Infrastructure.csproj" />
   </ItemGroup>
 
+	<ItemGroup>
+		<None Update="Evaluation\evalset.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>

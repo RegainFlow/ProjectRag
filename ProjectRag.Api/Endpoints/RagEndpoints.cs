@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using ProjectRag.Application.Abstractions;
 using ProjectRag.Application.Models;
+using ProjectRag.Application.Telemetry;
 using ProjectRag.Contracts;
 using ProjectRag.Domain.Entities;
 using ProjectRag.Domain.Enums;
@@ -114,6 +115,11 @@ internal static class RagEndpoints
             IQueryRewriteService queryRewriteService,
             CancellationToken cancellationToken) =>
         {
+            using var activity = ProjectRagTelemetry.ActivitySource.StartActivity("rag.search");
+            activity?.SetTag("rag.query.length", request.Query.Length);
+            activity?.SetTag("rag.top_k", request.TopK);
+            activity?.SetTag("rag.filters.source_type", request.Filters?.SourceType);
+
             var filters = request.Filters is null
                 ? null
                 : new SearchFilters(
@@ -132,6 +138,9 @@ internal static class RagEndpoints
                 queryRewrite.KeywordQuery);
 
             var hits = await retrievalSearchService.SearchAsync(retrievalQuery, request.TopK, filters, cancellationToken);
+
+            activity?.SetTag("rag.results.count", hits.Count);
+            activity?.SetTag("rag.reranking.applied", hits.Any(x => x.RerankScore.HasValue));
 
             var response = new SearchResponse(
                 request.Query,
@@ -163,6 +172,11 @@ internal static class RagEndpoints
             IRagAnswerService ragAnswerService,
             CancellationToken cancellationToken) =>
         {
+            using var activity = ProjectRagTelemetry.ActivitySource.StartActivity("rag.ask");
+            activity?.SetTag("rag.question.length", request.Question.Length);
+            activity?.SetTag("rag.top_k", request.TopK);
+            activity?.SetTag("rag.filters.source_type", request.Filters?.SourceType);
+
             var filters = request.Filters is null
                 ? null
                 : new SearchFilters(
@@ -174,6 +188,11 @@ internal static class RagEndpoints
                       request.Filters.PageTo);
 
             var answer = await ragAnswerService.AnswerAsync(request.Question, request.TopK, filters, cancellationToken);
+
+            activity?.SetTag("rag.answer.status", answer.AnswerStatus);
+            activity?.SetTag("rag.claims.count", answer.Claims.Count);
+            activity?.SetTag("rag.citations.count", answer.Citations.Count);
+            activity?.SetTag("rag.reranking.applied", answer.RetrievalDiagnostics.RerankingApplied);
 
             var response = new AskResponse(
                 answer.Answer,

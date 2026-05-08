@@ -1,6 +1,6 @@
 # Architecture
 
-ProjectRag is a layered .NET RAG service. The architecture is intentionally conservative: establish clear boundaries, persistence, API contracts, testability, scanned document extraction, persistent search indexing, hybrid retrieval, query rewriting, RRF fusion, semantic reranking, and grounded answer generation before introducing evaluation or agentic orchestration.
+ProjectRag is a layered .NET RAG service. The architecture is intentionally conservative: establish clear boundaries, persistence, API contracts, testability, scanned document extraction, persistent search indexing, hybrid retrieval, query rewriting, RRF fusion, semantic reranking, grounded answer generation, evaluation, and observability before introducing agentic orchestration.
 
 ## Layers
 
@@ -35,7 +35,7 @@ ProjectRag.Infrastructure
   Hybrid keyword/vector retrieval
 
 ProjectRag.Application
-  Application abstractions and cross-layer models
+  Application abstractions, cross-layer models, and shared telemetry source
 
 ProjectRag.Ingestion.Worker
   Future background ingestion processing
@@ -278,8 +278,45 @@ Current integration tests use:
 - direct tests for LLM reranking fallback and scoring
 - direct tests for grounded answer parsing, refusal behavior, diagnostics, and model info
 - direct tests for layout block normalization
+- evaluation tests against a committed synthetic question/expected-source set
+- eval metrics for retrieval hit rate, calculated citation correctness, answer status correctness, and latency
 
 This verifies API + DI + EF Core + extraction/ingestion + retrieval/answer behavior without mutating the developer's local SQLite file and without requiring Ollama, Azure, or Elasticsearch during normal tests. Elasticsearch behavior is currently covered by manual local smoke testing.
+
+## Evaluation
+
+The Phase 9 evaluation harness starts with deterministic regression signals before adding LLM-based quality judging:
+
+- eval cases live in `ProjectRag.Tests/Evaluation/evalset.json`
+- supported cases assert that the expected source is retrieved
+- answer status correctness is tracked for `answered` and `insufficientContext`
+- citation correctness is calculated, but not enforced while API tests use `FakeChatClient`
+- latency is recorded per eval case and summarized through test output
+
+Microsoft.Extensions.AI evaluation packages are a planned second layer for answer quality, groundedness, relevance, and reporting. Deterministic source-hit tests should remain the default regression signal because they are cheaper and more stable.
+
+## Observability
+
+OpenTelemetry is configured in `ProjectRag.Api` and exported over OTLP for local tools such as the Aspire Dashboard. The shared `ActivitySource` lives in `ProjectRag.Application.Telemetry` so API and Infrastructure can emit spans without creating a dependency from Infrastructure back to API.
+
+Current custom RAG spans:
+
+```text
+rag.search
+rag.ask
+rag.answer
+rag.answer_generation
+rag.query_rewrite
+rag.retrieval.hybrid
+rag.search.vector
+rag.search.keyword
+rag.rank_fusion.rrf
+rag.rerank
+rag.ingestion
+rag.ingestion.file
+```
+
+Chat and embedding clients are wrapped with Microsoft.Extensions.AI OpenTelemetry support. Custom span tags should prefer counts, lengths, statuses, and model/provider identifiers. Raw prompts, document text, answers, and user questions should not be added as custom tags.
 
 ## Current Limitations
 
@@ -290,5 +327,6 @@ This verifies API + DI + EF Core + extraction/ingestion + retrieval/answer behav
 - Elasticsearch integration is manually smoke-tested, not part of the default automated test suite.
 - Changed-file reingestion has a skipped regression test pending a focused EF tracking design pass.
 - `/ask` uses structured claim citations, but claim-level factual correctness is not automatically verified yet.
+- Evaluation currently focuses on deterministic retrieval/source/status checks. LLM-based quality evaluation is planned but not required for default test runs.
 - The current reranker is educational and prompt-driven. Provider-native reranking, structured output enforcement, and local ONNX cross-encoders are future improvements.
 - Agentic behavior is a later phase.

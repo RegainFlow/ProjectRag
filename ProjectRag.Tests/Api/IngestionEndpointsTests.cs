@@ -100,15 +100,11 @@ public sealed class IngestionEndpointsTests : IClassFixture<RagApiFactory>
 
         try
         {
-            var filePath = Path.Combine(tempDirectory.FullName, "refund-policy.md");
+            SampleDocsTestHelper.CopySampleDocs(tempDirectory.FullName);
 
-            await File.WriteAllTextAsync(filePath, """
-                # Refund Policy
-
-                Refund requests must be submitted within 30 days.
-                """);
-
-            await _client.PostAsJsonAsync("/api/v1/ingestions", new StartIngestionRequest(filePath));
+            await _client.PostAsJsonAsync(
+                "/api/v1/ingestions",
+                new StartIngestionRequest(tempDirectory.FullName));
 
             var documents = await _client.GetFromJsonAsync<IReadOnlyList<DocumentSummaryResponse>>("/api/v1/documents");
 

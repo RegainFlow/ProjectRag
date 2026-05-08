@@ -22,16 +22,11 @@ public sealed class SearchEndpointsTests : IClassFixture<RagApiFactory>
         try
         {
             var filePath = Path.Combine(tempDirectory.FullName, "late-payment-policy.md");
-
-            await File.WriteAllTextAsync(filePath, """
-                # Late Payment Policy
-
-                Late balances may receive a monthly fee after a grace period.
-                """);
+            SampleDocsTestHelper.CopySampleDocs(tempDirectory.FullName);
 
             var ingestionResponse = await _client.PostAsJsonAsync(
                 "/api/v1/ingestions",
-                new StartIngestionRequest(filePath));
+                new StartIngestionRequest(tempDirectory.FullName));
 
             Assert.Equal(HttpStatusCode.Accepted, ingestionResponse.StatusCode);
 
