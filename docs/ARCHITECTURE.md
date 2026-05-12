@@ -1,6 +1,6 @@
 # Architecture
 
-ProjectRag is a layered .NET RAG service. The architecture is intentionally conservative: establish clear boundaries, persistence, API contracts, testability, scanned document extraction, persistent search indexing, hybrid retrieval, query rewriting, RRF fusion, semantic reranking, grounded answer generation, evaluation, and observability before introducing agentic orchestration.
+ProjectRag is a layered .NET RAG service. The architecture is intentionally conservative: establish clear boundaries, persistence, API contracts, testability, scanned document extraction, persistent search indexing, hybrid retrieval, query rewriting, RRF fusion, semantic reranking, grounded answer generation, evaluation, and observability. This repository stops at that learning checkpoint; agentic orchestration and production hardening are intended for a future fork.
 
 ## Layers
 
@@ -38,7 +38,7 @@ ProjectRag.Application
   Application abstractions, cross-layer models, and shared telemetry source
 
 ProjectRag.Ingestion.Worker
-  Future background ingestion processing
+  Background worker shell reserved for a future hardening fork
 
 ProjectRag.Tests
   Integration and unit tests
@@ -285,7 +285,7 @@ This verifies API + DI + EF Core + extraction/ingestion + retrieval/answer behav
 
 ## Evaluation
 
-The Phase 9 evaluation harness starts with deterministic regression signals before adding LLM-based quality judging:
+The Phase 9 evaluation harness starts with deterministic regression signals. LLM-based quality judging is intentionally left for a future hardening fork:
 
 - eval cases live in `ProjectRag.Tests/Evaluation/evalset.json`
 - supported cases assert that the expected source is retrieved
@@ -293,7 +293,7 @@ The Phase 9 evaluation harness starts with deterministic regression signals befo
 - citation correctness is calculated, but not enforced while API tests use `FakeChatClient`
 - latency is recorded per eval case and summarized through test output
 
-Microsoft.Extensions.AI evaluation packages are a planned second layer for answer quality, groundedness, relevance, and reporting. Deterministic source-hit tests should remain the default regression signal because they are cheaper and more stable.
+Microsoft.Extensions.AI evaluation packages are the recommended second layer for answer quality, groundedness, relevance, and reporting in the next fork. Deterministic source-hit tests should remain the default regression signal because they are cheaper and more stable.
 
 ## Observability
 
@@ -327,6 +327,17 @@ Chat and embedding clients are wrapped with Microsoft.Extensions.AI OpenTelemetr
 - Elasticsearch integration is manually smoke-tested, not part of the default automated test suite.
 - Changed-file reingestion has a skipped regression test pending a focused EF tracking design pass.
 - `/ask` uses structured claim citations, but claim-level factual correctness is not automatically verified yet.
-- Evaluation currently focuses on deterministic retrieval/source/status checks. LLM-based quality evaluation is planned but not required for default test runs.
-- The current reranker is educational and prompt-driven. Provider-native reranking, structured output enforcement, and local ONNX cross-encoders are future improvements.
-- Agentic behavior is a later phase.
+- Evaluation currently focuses on deterministic retrieval/source/status checks. LLM-based quality evaluation belongs in the future hardening fork.
+- The current reranker is educational and prompt-driven. Provider-native reranking, structured output enforcement, and local ONNX cross-encoders belong in the future hardening fork.
+- Agentic behavior is intentionally out of scope for this repository.
+
+## Future Fork Direction
+
+A future fork should treat this repository as the learning baseline and focus on production-oriented changes:
+
+- deeper Microsoft.Extensions.AI package usage for model abstractions, telemetry, and evaluation
+- Elasticsearch native RRF and provider-native reranking comparison
+- Microsoft Agent Framework for controlled agent/tool orchestration
+- Microsoft Foundry Local, LM Studio, Azure OpenAI, Ollama, or other provider swapping
+- background ingestion, retries, dead-letter handling, and bulk indexing
+- auth, tenant/source filters, ACL metadata, rate limiting, PII handling, token/cost tracking, and operational metrics

@@ -1,8 +1,10 @@
 # ProjectRag
 
-ProjectRag is a learning-first .NET RAG service. The project is being built in phases so each layer introduces one production retrieval-augmented generation capability at a time.
+ProjectRag is a learning-first .NET RAG service. The project was built in phases so each layer introduced one production retrieval-augmented generation capability at a time.
 
-Current status: Phase 9 evaluation and observability is in progress. The API can ingest local text/markdown files plus scanned PDFs/images with Azure AI Document Intelligence, persist layout-aware chunks in SQLite, index chunk text and embeddings into Elasticsearch, rewrite user questions into semantic and keyword search queries, fuse keyword/vector results with Reciprocal Rank Fusion, rerank fused candidates with a local LLM, generate grounded answers with structured claims/citations/refusal status, run a deterministic eval harness, and emit OpenTelemetry traces for RAG pipeline stages.
+Current status: ProjectRag is complete through Phase 9 and is intentionally stopping here. The API can ingest local text/markdown files plus scanned PDFs/images with Azure AI Document Intelligence, persist layout-aware chunks in SQLite, index chunk text and embeddings into Elasticsearch, rewrite user questions into semantic and keyword search queries, fuse keyword/vector results with Reciprocal Rank Fusion, rerank fused candidates with a local LLM, generate grounded answers with structured claims/citations/refusal status, run a deterministic eval harness, and emit OpenTelemetry traces for RAG pipeline stages.
+
+Further work will happen in a fork focused on hardening and production-oriented experiments: deeper Microsoft.Extensions.AI usage, provider-native Elasticsearch RRF/reranking, Microsoft Agent Framework agents, Microsoft Foundry Local or LM Studio model providers, background ingestion, stronger evaluation, and operational hardening.
 
 ## Phase Roadmap
 
@@ -16,7 +18,8 @@ Current status: Phase 9 evaluation and observability is in progress. The API can
 8. Phase 7: Local LLM semantic reranking after RRF.
 9. Phase 8: Stricter grounded answers with structured claims, refusal status, diagnostics, and model info.
 10. Phase 9: Evaluation harness and OpenTelemetry observability.
-11. Phase 10+: Agentic RAG and enterprise hardening.
+
+This repository stops at Phase 9. Agentic RAG and enterprise hardening are out of scope for this repo and should be explored in a fork.
 
 ## Solution Layout
 
@@ -269,9 +272,23 @@ The `/ask` response includes:
 
 ## Evaluation And Observability
 
-Phase 9 adds a lightweight eval harness plus OpenTelemetry instrumentation before agentic behavior. The eval harness is deterministic by default: it verifies that expected sources are retrieved, records answer status correctness, calculates citation correctness, and tracks latency. Microsoft.Extensions.AI evaluation packages are planned as a later quality-evaluation layer for groundedness, relevance, completeness, equivalence, and reporting.
+Phase 9 adds a lightweight eval harness plus OpenTelemetry instrumentation. The eval harness is deterministic by default: it verifies that expected sources are retrieved, records answer status correctness, calculates citation correctness, and tracks latency. Microsoft.Extensions.AI evaluation packages are a candidate quality-evaluation layer for groundedness, relevance, completeness, equivalence, and reporting in the hardening fork.
 
 OpenTelemetry is configured in the API and uses a shared `ProjectRag` `ActivitySource`. `/search`, `/ask`, query rewriting, hybrid retrieval, vector search, keyword search, RRF fusion, reranking, answer generation, and ingestion emit custom spans. Ollama chat and embedding calls are wrapped with Microsoft.Extensions.AI OpenTelemetry support where available.
+
+## Project Conclusion
+
+This repo is a completed learning checkpoint, not the final production architecture. It intentionally keeps several educational implementations visible, including application-level RRF and LLM-as-reranker. The next project/fork can replace or harden those areas without losing the learning record captured here.
+
+Recommended fork goals:
+
+- replace custom retrieval pieces with more Microsoft.Extensions.AI-native packages and tools where practical
+- evaluate Elasticsearch native RRF and provider-native reranking
+- add Microsoft.Extensions.AI evaluation/reporting as a second eval layer
+- move long-running ingestion to a worker/background queue
+- add provider switching for Ollama, Microsoft Foundry Local, LM Studio, Azure OpenAI, or other local/on-prem providers
+- explore Microsoft Agent Framework for agent/tool orchestration
+- add production hardening: auth, tenant filters, ACLs, rate limiting, retry policies, cost/token telemetry, PII handling, and dead-letter ingestion
 
 ## References
 

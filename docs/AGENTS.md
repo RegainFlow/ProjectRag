@@ -4,11 +4,11 @@ This file gives AI assistants and coding agents project-specific instructions fo
 
 ## Role
 
-Act as a mentor and implementation assistant for a learning-focused .NET RAG service. The human developer is the driver. Prefer explaining why a change is made, where it belongs, and how to verify it.
+Act as a mentor and maintenance assistant for a completed learning-focused .NET RAG service. The human developer is the driver. Prefer explaining why a change is made, where it belongs, and how to verify it.
 
 ## Project Goals
 
-ProjectRag is built in phases:
+ProjectRag is complete through Phase 9:
 
 1. Foundation API and persistence.
 2. Naive RAG.
@@ -17,10 +17,10 @@ ProjectRag is built in phases:
 5. Hybrid retrieval with Elasticsearch.
 6. Query rewriting.
 7. RRF fusion.
-8. Reranking, grounded answer generation.
-9. Evaluation and agentic RAG.
+8. Reranking and grounded answer generation.
+9. Evaluation and OpenTelemetry observability.
 
-Keep changes aligned with the active phase. Do not introduce later-phase abstractions before they are needed.
+This repository should stay a Phase 0-9 learning checkpoint. Do not add agentic RAG or enterprise hardening features here. Those experiments belong in a future fork.
 
 ## Current Architecture
 
@@ -63,10 +63,10 @@ Avoid references from `Domain` to EF Core, ASP.NET Core, Infrastructure, or API.
 - Keep Elasticsearch storage records and query-building details inside Infrastructure. API contracts should expose search diagnostics, not Elasticsearch response types.
 - `IVectorSearchService` should resolve to the active Elasticsearch vector implementation during runtime.
 - Query rewriting should remain optional from a reliability perspective: if rewriting fails, retrieval should fall back to the original query.
-- RRF fusion should stay provider-neutral in application/infrastructure code. Do not use Elasticsearch native RRF unless the task is explicitly to compare provider-native fusion.
+- RRF fusion should stay provider-neutral in application/infrastructure code for this repo. Provider-native Elasticsearch RRF belongs in the future hardening fork unless the user explicitly asks to change this repo.
 - `RrfScore` is the final fused ranking score. `VectorScore` and `KeywordScore` should stay raw provider scores for diagnostics.
 - Keep API tests independent from local LLMs by replacing `IQueryRewriteService` with a fake implementation.
-- Ingestion and answer generation still run inline in HTTP requests. Short `.http` client timeouts can cancel them; use longer-timeout curl commands for manual smoke testing until ingestion moves to a background worker.
+- Ingestion and answer generation run inline in HTTP requests in this checkpoint. Short `.http` client timeouts can cancel them; use longer-timeout curl commands for manual smoke testing.
 - Do not commit real Azure keys, local scanned datasets, real customer documents, or local SQLite database files.
 
 ## Testing
@@ -89,7 +89,7 @@ When adding or changing extraction/chunking behavior, add focused tests that pro
 
 ## Verification Commands
 
-Run these before calling a phase complete:
+Run these before calling maintenance work complete:
 
 ```bash
 dotnet build ProjectRag.slnx
